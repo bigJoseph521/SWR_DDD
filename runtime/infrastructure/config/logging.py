@@ -5,8 +5,8 @@ import logging
 import sys
 from typing import Mapping
 
+from runtime.bootstrap.platform_trace_builder import build_platform_trace_spec_from_launch
 from runtime.infrastructure.config.settings import Settings
-from runtime.domain.model.platform_trace_spec import PlatformTraceSpec
 from runtime.domain.worker_identity import WorkerIdentity
 from runtime.infrastructure.observability.logger import RuntimeLogContext
 
@@ -40,7 +40,7 @@ def build_runtime_log_context(
     worker_identity: WorkerIdentity,
 ) -> RuntimeLogContext:
     launch_spec = settings.launch_spec
-    trace = PlatformTraceSpec.from_launch(
+    trace = build_platform_trace_spec_from_launch(
         launch_spec=launch_spec,
         launch_payload=settings.launch_payload,
     )

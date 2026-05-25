@@ -26,6 +26,7 @@ Deprecated compatibility wrapper folders (`config/`, `events/`, `integration/`, 
 | `runtime_dependencies_wiring.py` | Wires concrete gateways/clocks into `RuntimeDependencies` |
 | `sdk_order_intent_wiring.py` | SDK submitter factory → `SubmitOrderIntent` + Risk adapter |
 | `runtime_spec_builder.py` | Builds domain spec models from settings |
+| `platform_trace_builder.py` | Maps ``LaunchSpec`` → ``PlatformTraceSpec`` |
 | `launch_spec.py`, `validator.py`, `sdk_contract_validator.py` | Launch validation pipeline |
 | `failures.py`, `persistence.py`, `strategy_instance_manager.py` | Bootstrap lifecycle |
 | `minimal_env_validation.py`, `srm_env_status_report.py` | SRM pre-bootstrap |
@@ -91,9 +92,11 @@ as structured ``OrderIntentResult`` values with the response payload preserved.
 Application code uses :class:`~runtime.domain.model.strategy_order_intent.StrategyOrderIntent`
 (instrument, side, type, quantity, prices, optional ``client_order_id``). Platform trace metadata
 (``strategy_id``, ``correlation_id``, ``request_id``) lives in
-:class:`~runtime.domain.model.platform_trace_spec.PlatformTraceSpec` and is attached to structured
+:class:`~runtime.domain.model.platform_trace_spec.PlatformTraceSpec` (pure domain value object).
+Bootstrap maps ``LaunchSpec`` into ``PlatformTraceSpec`` via
+``runtime/bootstrap/platform_trace_builder.py`` and
+``runtime/bootstrap/runtime_spec_builder.py``. Trace fields are attached to structured
 logs, domain events, manager signals, and Risk Service wire payloads via
-``runtime/bootstrap/runtime_spec_builder.py`` and
 ``runtime/infrastructure/grpc/risk_order_intent_wire_mapper.py``.
 
 Canonical env: `SWR_RISK_GRPC_TARGET`.

@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 from runtime.bootstrap.launch_spec import LaunchSpec
+from runtime.bootstrap.platform_trace_builder import build_platform_trace_spec_from_launch
 from runtime.infrastructure.config.settings import Settings
 from runtime.domain.enums import WorkerMode
 from runtime.domain.model.platform_trace_spec import PlatformTraceSpec
@@ -31,7 +32,7 @@ def _strategy_params_from_payload(payload: Mapping[str, object]) -> Mapping[str,
 
 
 def build_platform_trace_from_settings(settings: Settings) -> PlatformTraceSpec:
-    return PlatformTraceSpec.from_launch(
+    return build_platform_trace_spec_from_launch(
         launch_spec=settings.launch_spec,
         launch_payload=settings.launch_payload,
     )

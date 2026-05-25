@@ -3,16 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping
 
-from runtime.bootstrap.launch_spec import LaunchSpec
-
-
-def _optional_payload_str(payload: Mapping[str, object], key: str) -> str | None:
-    raw = payload.get(key)
-    if not isinstance(raw, str):
-        return None
-    text = raw.strip()
-    return text or None
-
 
 @dataclass(frozen=True, slots=True)
 class PlatformTraceSpec:
@@ -22,24 +12,6 @@ class PlatformTraceSpec:
     strategy_version_id: str | None
     correlation_id: str | None
     request_id: str | None
-
-    @classmethod
-    def from_launch(
-        cls,
-        *,
-        launch_spec: LaunchSpec,
-        launch_payload: Mapping[str, object],
-    ) -> PlatformTraceSpec:
-        strategy_id = _optional_payload_str(launch_payload, "strategy_id")
-        request_id = _optional_payload_str(launch_payload, "request_id")
-        if request_id is None:
-            request_id = f"{launch_spec.runtime_id}:{launch_spec.launch_attempt}"
-        return cls(
-            strategy_id=strategy_id,
-            strategy_version_id=launch_spec.strategy_version_id,
-            correlation_id=launch_spec.correlation_id,
-            request_id=request_id,
-        )
 
     def effective_correlation_id(self, *, env_fallback: str = "") -> str | None:
         """Bundle ``correlation_id`` first, then env/tuning fallback (e.g. order-intent override)."""
