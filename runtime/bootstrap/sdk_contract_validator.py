@@ -10,9 +10,7 @@ from pathlib import Path
 from typing import Any, Mapping, Protocol
 
 from alphovex_sdk.strategy import Strategy as AlphovexStrategy
-from runtime.bootstrap import (
-    run_mypy_validation as mypy_validation_runner,
-)
+import runtime.bootstrap.run_mypy_validation as mypy_validation_runner
 from runtime.bootstrap.artifact_fetcher import (
     ArtifactFetcher,
     ArtifactFetchResult,

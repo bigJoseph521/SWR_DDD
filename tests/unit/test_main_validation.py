@@ -27,22 +27,12 @@ def _import_main_with_stubs() -> Any:
     setattr(app_mod, "WorkerControlApplicationImpl", _WorkerControlApplicationImpl)
     sys.modules["runtime.application.worker_control_application"] = app_mod
 
-    manager_mod = types.ModuleType("runtime.transport.grpc.manager_signal_client")
-
     class _NoopManagerClient:  # pragma: no cover - import stub only
         def emit_signal(self, envelope: object) -> dict[str, object]:
             return {"accepted": False}
 
         def close(self) -> None:
             return None
-
-    class _GrpcManagerSignalClient(_NoopManagerClient):  # pragma: no cover
-        pass
-
-    setattr(manager_mod, "_NoopManagerClient", _NoopManagerClient)
-    setattr(manager_mod, "GrpcManagerSignalClient", _GrpcManagerSignalClient)
-    setattr(manager_mod, "build_manager_client", lambda *_a, **_k: _NoopManagerClient())
-    sys.modules["runtime.transport.grpc.manager_signal_client"] = manager_mod
 
     manager_client_mod = types.ModuleType("runtime.transport.manager_client")
     setattr(

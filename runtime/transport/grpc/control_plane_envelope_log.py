@@ -11,15 +11,10 @@ Paths:
   same event-envelope shape as **stdout** (root metadata + ``payload`` for outcome).
   Response **stdout** still logs via ``build_control_envelope_message`` (duplicate line for operators).
 - ``integration.manager_gateway`` + ``ManagerGateway._print_runtime_manager_message``:
-  prints the same envelope shape on stdout. **Heartbeat** is sent to SRM via
-  ``POST /internal/v1/runtimes/{runtime_id}/status`` (``transport.heartbeat``)
-  when ``STRATEGY_RUNTIME_MANAGER_BASE_URL`` is configured; other lifecycle signals
-  still use gRPC (``GrpcManagerSignalClient``) when ``SWR_RUNTIME_MANAGER_GRPC_TARGET``
-  is set.
-- ``transport.grpc.manager_signal_client``: maps non-heartbeat envelope dicts to
-  LaunchSucceeded, LaunchFailed, RuntimeDegradedSignal, TerminationReported (flat
-  envelope + Struct ``payload``). ``controlled_stop`` is emitted via the gateway
-  but is not implemented on this client (returns unsupported).
+  prints the same envelope shape on stdout. When ``STRATEGY_RUNTIME_MANAGER_BASE_URL`` is set,
+  ``transport.manager_client`` routes workload signals over HTTP: heartbeats via
+  ``transport.heartbeat`` (``POST /internal/v1/runtimes/{runtime_id}/status``) and
+  lifecycle signals via ``transport.lifecycle_signal`` (``POST .../lifecycle-signals``).
 
 Postman/grpcurl JSON for ``StopWorker`` is the envelope (no duplicate flat outcome fields).
 """
