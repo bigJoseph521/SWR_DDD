@@ -2,9 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from runtime.application.dependency_container import (
-    build_dependency_container,
-)
+from runtime.bootstrap.dependency_container import build_dependency_container
 from runtime.infrastructure.config.settings import load_settings_from_bundle_dict
 from runtime.infrastructure.config.settings import Settings
 from runtime.domain.enums import WorkerMode
@@ -45,16 +43,17 @@ def test_build_is_deterministic_and_runtime_deps_are_singleton() -> None:
     assert container.mode_policy.mode is WorkerMode.PAPER
 
 
-def test_mode_wiring_paper_allows_oms_and_blocks_replay() -> None:
+def test_mode_wiring_paper_allows_risk_order_intent() -> None:
     settings = _load("PAPER")
     container = build_dependency_container(settings)
     deps = container.runtime_dependencies_initializer()
 
     assert deps.risk_order_intent is not None
-    assert deps.replay is None
 
 
-def test_mode_wiring_backtest_allows_replay_and_risk_order_intent_gateway() -> None:
+def test_mode_wiring_backtest_uses_simulated_clock_and_risk_order_intent_gateway() -> None:
+    from runtime.infrastructure.clock.clock import SimulatedClock
+
     settings = _load(
         "BACKTEST",
         job_id="job-1",
@@ -65,7 +64,7 @@ def test_mode_wiring_backtest_allows_replay_and_risk_order_intent_gateway() -> N
     deps = container.runtime_dependencies_initializer()
 
     assert deps.risk_order_intent is not None
-    assert deps.replay is not None
+    assert isinstance(deps.clock, SimulatedClock)
 
 
 def test_same_lifecycle_instance_is_used_by_worker_app() -> None:

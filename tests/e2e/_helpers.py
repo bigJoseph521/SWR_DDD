@@ -14,7 +14,7 @@ class FakeManagerClient:
         return {"accepted": True, "signal_type": payload.get("signal_type")}
 
 
-class FakeOmsClient:
+class FakeRiskOrderIntentClient:
     def __init__(self) -> None:
         self.intent_calls: list[dict[str, Any]] = []
 

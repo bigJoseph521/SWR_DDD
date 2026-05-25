@@ -16,7 +16,7 @@ from runtime.application.strategy_execution.strategy_execution_service import (
     StrategyExecutionService,
 )
 from runtime.application.strategy_execution.event_mapper import EventMapper
-from runtime.bootstrap.launch_spec import LaunchSpec
+from runtime.domain.launch_spec import LaunchSpec
 from runtime.application.strategy_execution.strategy_adapter import StrategyAdapter
 from runtime.application.strategy_execution.strategy_error_boundary import StrategyErrorBoundary
 from runtime.infrastructure.config.settings import Settings
@@ -77,19 +77,10 @@ def test_runtime_specs_from_settings_separates_concerns() -> None:
         heartbeat_interval_seconds=10.0,
         deployment_id="dep-1",
         worker_control_http_bind="127.0.0.1:0",
-        replay_ingress_grpc_bind="127.0.0.1:0",
-        replay_ingress_grpc_fallback_ports="",
-        replay_ingress_grpc_no_fallback=True,
-        oms_grpc_target="127.0.0.1:50053",
-        oms_grpc_timeout_seconds=3.0,
         risk_grpc_target="127.0.0.1:50054",
         risk_grpc_timeout_seconds=3.0,
         replay_bar_timeframe="1m",
-        replay_ingress_trace_payload=False,
-        replay_tick_logging_quiet=True,
         order_intent_correlation_id="",
-        oms_correlation_id="",
-        replay_session_id="",
         disable_order_intent_grpc=True,
     )
     built = build_runtime_specs_from_settings(settings)
@@ -212,9 +203,6 @@ def test_dispatch_raw_routes_through_public_runtime_handler_api() -> None:
         def has_market_handler(self) -> bool:
             return True
 
-        def has_portfolio_handler(self) -> bool:
-            return False
-
         def handle_raw_tick(self, raw_event: dict[str, object]) -> None:
             self.raw_ticks.append(dict(raw_event))
 
@@ -244,9 +232,6 @@ def test_dispatch_portfolio_routes_through_public_runtime_handler_api() -> None:
 
         def has_market_handler(self) -> bool:
             return False
-
-        def has_portfolio_handler(self) -> bool:
-            return True
 
         def handle_raw_tick(self, raw_event: dict[str, object]) -> None:
             raise AssertionError("market path not expected")
@@ -279,9 +264,6 @@ def test_dispatch_raw_logs_event_mapping_error(
 
     class _NoMarketHandler:
         def has_market_handler(self) -> bool:
-            return False
-
-        def has_portfolio_handler(self) -> bool:
             return False
 
         def handle_raw_tick(self, raw_event: dict[str, object]) -> None:

@@ -5,11 +5,11 @@ from pathlib import Path
 import pytest
 from runtime.infrastructure.strategy_loader.artifact_fetcher import ArtifactFetchResult
 from runtime.infrastructure.strategy_loader.entrypoint_loader import EntrypointLoader
-from runtime.bootstrap.failures import (
+from runtime.domain.bootstrap_failures import (
     BootstrapStage,
     EntrypointLoadFailure,
 )
-from runtime.bootstrap.launch_spec import LaunchSpec
+from runtime.domain.launch_spec import LaunchSpec
 
 
 def _build_launch_spec(

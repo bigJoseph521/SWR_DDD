@@ -3,83 +3,42 @@ from __future__ import annotations
 import inspect
 import json
 import logging
-import os
 import threading
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Callable, Mapping, Protocol, Sequence
 
-from runtime.bootstrap.backtest_replay_tick_filter import (
-    skip_backtest_replay_tick_for_ingest,
-)
-from runtime.bootstrap.failures import BootstrapFailure, BootstrapStage
-from runtime.bootstrap.srm_env_status_report import (
-    initiate_stop_status_update,
-    is_failure_shutdown,
-    print_bootstrap_failure_outcome,
-    print_bootstrap_success_outcome,
-    print_shutdown_status_outcome,
-    report_bootstrap_failure_to_srm,
-    report_bootstrap_success_to_srm,
-    report_final_shutdown_to_srm,
-    resolve_shutdown_report,
-)
-from runtime.interface.http.stop_control_server import (
+from runtime.application.lifecycle.bootstrap_stages import BOOTSTRAP_STAGE_ORDER
+from runtime.application.lifecycle.lifecycle_ddd_wiring import LifecycleDddWiring
+from runtime.application.lifecycle.noop_host_ports import noop_lifecycle_host_ports
+from runtime.application.lifecycle.stop_errors import (
     StopAlreadyInProgress,
     WorkerAlreadyStopped,
 )
-from runtime.bootstrap.launch_spec import LaunchSpec
-from runtime.infrastructure.sdk.replay_sdk_bridge import (
-    ReplaySdkBridge,
-    build_replay_sdk_bridge,
+from runtime.application.ports.launch_context import LaunchContext
+from runtime.application.ports.lifecycle_ports import (
+    BootstrapPipelinePort,
+    BootstrapSuccessView,
+    LaunchMetadataValidatorPort,
+    LifecycleHostPorts,
+    RuntimeLoggerPort,
+    StateJournalPort,
+    StrategyInstanceCoordinatorPort,
 )
-from runtime.bootstrap.sdk_contract_validator import (
-    BootstrapPipeline,
-    BootstrapPipelineResult,
-    BootstrapPipelineSuccess,
-)
-from runtime.bootstrap.runtime_spec_builder import (
-    build_platform_trace_from_settings,
-    build_runtime_specs_from_settings,
-)
-from runtime.domain.model.platform_trace_spec import PlatformTraceSpec
-from runtime.application.lifecycle.lifecycle_ddd_wiring import (
-    LifecycleDddWiring,
-    build_lifecycle_ddd_wiring,
-)
+from runtime.application.ports.worker_domain_events import StrategyWorkerDomainEvent
+from runtime.application.runtime_dependencies import RuntimeDependencies
 from runtime.application.runtime_state.runtime_state import RuntimeState
-from runtime.infrastructure.config.settings import Settings
 from runtime.application.strategy_execution.strategy_adapter import StrategyAdapter
 from runtime.application.strategy_execution.strategy_error_boundary import StrategyCallResult
-from runtime.bootstrap.strategy_instance_manager import (
-    StrategyAssignmentKey,
-    StrategyInstanceManager,
-)
-from runtime.bootstrap.validator import LaunchSpecValidator
 from runtime.domain.enums import WorkerMode, WorkerPhase
 from runtime.domain.errors import (
     RuntimeStartValidationFailedError,
     normalize_runtime_reason_code,
 )
+from runtime.domain.model.platform_trace_spec import PlatformTraceSpec
 from runtime.domain.worker_identity import WorkerIdentity
-from runtime.infrastructure.clock.clock import SimulatedClock
-from runtime.infrastructure.clock.epoch_time import (
-    utc_from_epoch_millis,
-    utc_from_epoch_seconds,
-)
-from runtime.infrastructure.observability.domain_events import (
-    DomainEventSampler,
-    StrategyWorkerDomainEvent,
-    emit_bound_domain_event,
-)
-from runtime.infrastructure.observability.logger import RuntimeBoundLogger
-from runtime.infrastructure.persistence.runtime_journal_sink import RuntimeJournalSink
-from runtime.application.runtime_dependencies import RuntimeDependencies
-from runtime.infrastructure.http.srm.heartbeat import (
-    SRM_STATUS_SOURCE_HEARTBEAT,
-    SRM_STATUS_SOURCE_UPDATE,
-)
-from runtime.bootstrap.sdk_order_intent_wiring import build_sdk_order_intent_submitter
+
+
 
 
 class WorkAcceptor(Protocol):
@@ -96,137 +55,8 @@ class DiagnosticFlusher(Protocol):
     def flush(self) -> None: ...
 
 
-class Closeable(Protocol):
-    def close(self) -> None: ...
-
-
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
-
-
-def _parse_datetime(value: object) -> datetime | None:
-    if isinstance(value, datetime):
-        return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
-    if isinstance(value, str) and value.strip():
-        text = value.strip().replace("Z", "+00:00")
-        try:
-            parsed = datetime.fromisoformat(text)
-        except ValueError:
-            return None
-        return (
-            parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=timezone.utc)
-        )
-    return None
-
-
-def _coerce_timestamp(value: object) -> datetime | None:
-    parsed = _parse_datetime(value)
-    if parsed is not None:
-        return parsed
-    if isinstance(value, Mapping):
-        sec = value.get("seconds")
-        if sec is None:
-            return None
-        try:
-            s = int(sec)
-        except (TypeError, ValueError):
-            return None
-        nanos = int(value.get("nanos") or 0)
-        return utc_from_epoch_seconds(float(s) + nanos / 1e9)
-    return None
-
-
-def _extract_market_timestamp(
-    event: Mapping[str, object], tick_payload: Mapping[str, object]
-) -> datetime | None:
-    event_ts = _coerce_timestamp(event.get("event_time"))
-    if event_ts is not None:
-        return event_ts
-    # Replay producers may place OHLC time on payload keys instead of event_time.
-    for key in ("event_time", "timestamp", "ts", "time"):
-        payload_ts = _coerce_timestamp(tick_payload.get(key))
-        if payload_ts is not None:
-            return payload_ts
-    return None
-
-
-_REPLAY_DATA_TRACE_MAX_EVENTS = 32
-
-
-def _summarize_replay_event_for_trace(event: Mapping[str, object]) -> dict[str, object]:
-    out: dict[str, object] = {}
-    for k in ("event_id", "event_type", "instrument_id", "sequence"):
-        v = event.get(k)
-        if v is not None and v != "":
-            out[k] = v
-    et = event.get("event_time")
-    if et is not None and et != "":
-        out["event_time"] = et
-    ep = event.get("payload")
-    if isinstance(ep, Mapping):
-        for k in (
-            "open",
-            "high",
-            "low",
-            "close",
-            "volume",
-            "timestamp",
-            "ts",
-            "type",
-            "event_type",
-        ):
-            if ep.get(k) is not None:
-                out[f"payload.{k}"] = ep[k]
-    return out
-
-
-def _print_replay_ingress_data_trace(
-    *,
-    replay_session_id: str,
-    replay_cursor: str,
-    end_of_stream: bool,
-    batch_simulated: datetime | None,
-    event_list: list[Mapping[str, object]],
-) -> None:
-    n = len(event_list)
-    head = event_list[:_REPLAY_DATA_TRACE_MAX_EVENTS]
-    summaries = [_summarize_replay_event_for_trace(e) for e in head]
-    line: dict[str, object] = {
-        "event_name": "replay.data.received",
-        "replay_session_id": replay_session_id,
-        "replay_cursor": replay_cursor,
-        "end_of_stream": end_of_stream,
-        "batch_event_count": n,
-        "simulated_time": (
-            batch_simulated.isoformat().replace("+00:00", "Z")
-            if batch_simulated
-            else None
-        ),
-        "events_sample": summaries,
-    }
-    if n > _REPLAY_DATA_TRACE_MAX_EVENTS:
-        line["events_truncated"] = True
-    print("----------------------------Replay data (trace)-------------", flush=True)
-    print(
-        json.dumps(line, default=str, separators=(",", ":"), ensure_ascii=True),
-        flush=True,
-    )
-
-
-def _backtest_window_bounds(
-    launch_spec: LaunchSpec,
-) -> tuple[datetime, datetime] | None:
-    if launch_spec.mode is not WorkerMode.BACKTEST:
-        return None
-    ts_start = launch_spec.ts_start
-    ts_end = launch_spec.ts_end
-    if not ts_start or not ts_end:
-        return None
-    lo = _parse_datetime(ts_start)
-    hi = _parse_datetime(ts_end)
-    if lo is None or hi is None:
-        return None
-    return (lo, hi)
 
 
 def _classify_launch_field_errors(
@@ -262,43 +92,27 @@ def _classify_launch_field_errors(
     return (sorted(missed), sorted(invalid), sorted(empty), details)
 
 
-_BOOTSTRAP_STAGE_ORDER: tuple[BootstrapStage, ...] = (
-    BootstrapStage.ARTIFACT_FETCH,
-    BootstrapStage.ARTIFACT_VERIFY,
-    BootstrapStage.ENTRYPOINT_LOAD,
-    BootstrapStage.SDK_VALIDATE,
-)
-
-
-class BootstrapPipelinePort(Protocol):
-    def run(self, launch_spec: LaunchSpec) -> BootstrapPipelineResult: ...
-
-
-def _env_market_data_suppress_tick_stdout() -> bool:
-    """When true, do not print each Redis market tick to stdout (default is to print)."""
-    v = os.environ.get("SWR_MARKET_DATA_SUPPRESS_TICK_STDOUT", "").strip().lower()
-    return v in ("1", "true", "yes", "on")
-
-
 class LifecycleService:
     def __init__(
         self,
         *,
-        launch_spec: LaunchSpec,
+        launch_spec: LaunchContext,
         launch_payload: Mapping[str, object],
         worker_identity: WorkerIdentity,
-        launch_spec_validator: LaunchSpecValidator,
-        bootstrap_pipeline: BootstrapPipeline | BootstrapPipelinePort,
-        log_binder: Callable[[], RuntimeBoundLogger],
+        launch_spec_validator: LaunchMetadataValidatorPort,
+        bootstrap_pipeline: BootstrapPipelinePort,
+        log_binder: Callable[[], RuntimeLoggerPort],
         runtime_dependencies_initializer: Callable[[], RuntimeDependencies],
-        strategy_instance_manager: StrategyInstanceManager | None = None,
+        strategy_instance_manager: StrategyInstanceCoordinatorPort | None = None,
         work_acceptor: WorkAcceptor | None = None,
         periodic_jobs: PeriodicJobController | None = None,
         diagnostic_flusher: DiagnosticFlusher | None = None,
         closeables: Sequence[object] = (),
         on_step: Callable[[str], None] | None = None,
-        state_journal: RuntimeJournalSink | None = None,
+        state_journal: StateJournalPort | None = None,
         worker_runtime_settings: Any | None = None,
+        ddd_wiring_builder: Callable[..., LifecycleDddWiring] | None = None,
+        host_ports: LifecycleHostPorts | None = None,
     ) -> None:
         self._launch_spec = launch_spec
         self._launch_payload = dict(launch_payload)
@@ -306,6 +120,8 @@ class LifecycleService:
         self._live_md_feed_stop = threading.Event()
         self._live_md_feed_thread: threading.Thread | None = None
         self._live_md_feed_started = False
+        self._backtest_stdin_feed: object | None = None
+        self._backtest_stdin_feed_started = False
         self._portfolio_update_feed_stop = threading.Event()
         self._portfolio_update_feed_thread: threading.Thread | None = None
         self._portfolio_update_feed_started = False
@@ -321,8 +137,10 @@ class LifecycleService:
         self._closeables = list(closeables)
         self._on_step = on_step
         self._state_journal = state_journal
+        self._ddd_wiring_builder = ddd_wiring_builder
+        self._host = host_ports or noop_lifecycle_host_ports()
 
-        self._runtime_logger: RuntimeBoundLogger | None = None
+        self._runtime_logger: RuntimeLoggerPort | None = None
         self._runtime_dependencies: RuntimeDependencies | None = None
         self._strategy_adapter: StrategyAdapter | None = None
         self._phase = WorkerPhase.INITIALIZING
@@ -342,7 +160,6 @@ class LifecycleService:
         self._last_data_event_timestamp: datetime | None = None
         self._last_replay_cursor: str = ""
         self._replay_state_lock = threading.Lock()
-        self._domain_event_sampler = DomainEventSampler(sample_every=100)
         self._emit_state_message(state=self._phase, level="INFO")
         if self._state_journal is not None:
             self._state_journal.record_phase_change(
@@ -351,6 +168,10 @@ class LifecycleService:
                 level="INFO",
                 reason_code=None,
             )
+
+    def attach_host_ports(self, host_ports: LifecycleHostPorts) -> None:
+        """Replace noop host ports with bootstrap-wired concrete adapters."""
+        self._host = host_ports
 
     @property
     def phase(self) -> WorkerPhase:
@@ -374,13 +195,10 @@ class LifecycleService:
 
     def should_stop_for_completed_backtest_job(self) -> bool:
         """
-        True in BACKTEST when the job is finished and the worker should shut down:
-
-        - Replay ingress sent ``end_of_stream``.
+        True in BACKTEST when stdin market-data stream ended and the worker should shut down.
 
         Callers should invoke :meth:`stop` with ``termination_reason_code="RUNTIME_JOB_COMPLETED"``
-        so ``runtime.terminated`` is distinct from operator stop (``STOP_REQUESTED``) and
-        manager :class:`StopWorker` (acknowledged via gRPC only, no duplicate signal).
+        so ``runtime.terminated`` is distinct from operator stop (``STOP_REQUESTED``).
         """
         if self._shutdown_complete or self._shutdown_in_progress:
             return False
@@ -461,7 +279,7 @@ class LifecycleService:
         if self._phase not in (WorkerPhase.READY, WorkerPhase.RUNNING):
             return
         now = _utc_now()
-        count, sample = self._domain_event_sampler.next("heartbeat_sent")
+        count, sample = self._host.domain_events.next("heartbeat_sent")
         self._emit_domain_event(
             StrategyWorkerDomainEvent.HEARTBEAT_SENT,
             "Worker heartbeat sent to strategy-runtime-manager",
@@ -478,7 +296,7 @@ class LifecycleService:
         self,
         *,
         observed_at: datetime | None = None,
-        source: str = SRM_STATUS_SOURCE_HEARTBEAT,
+        source: str | None = None,
         reason_code: str | None = None,
         message: str | None = None,
         retryable: bool | None = None,
@@ -489,7 +307,11 @@ class LifecycleService:
         if hb is not None:
             hb.emit_runtime_status(
                 observed_at=observed_at,
-                source=str(source),
+                source=str(
+                    source
+                    if source is not None
+                    else self._host.srm_status_source_heartbeat
+                ),
                 reason_code=reason_code,
                 message=message,
                 retryable=retryable,
@@ -499,7 +321,11 @@ class LifecycleService:
         self._runtime_dependencies.manager.emit_heartbeat(
             local_state=self._phase.value,
             observed_at=when,
-            source=str(source),
+            source=str(
+                source
+                if source is not None
+                else self._host.srm_status_source_heartbeat
+            ),
             reason_code=reason_code,
             message=message,
             retryable=retryable,
@@ -518,17 +344,14 @@ class LifecycleService:
         timeout_seconds = float(
             getattr(wrs, "runtime_manager_heartbeat_timeout_seconds", 30.0) or 30.0
         )
-        try:
-            srm_response = report_bootstrap_success_to_srm(
-                runtime_id=self._launch_spec.runtime_id,
-                mode=self._launch_spec.mode.value,
-                owner_resource_id=deployment_id,
-                srm_base_url=srm_base_url,
-                timeout_seconds=timeout_seconds,
-            )
-            print_bootstrap_success_outcome(srm_response=srm_response)
-        except Exception:
-            pass
+        self._host.srm.report_bootstrap_success(
+            runtime_id=self._launch_spec.runtime_id,
+            mode=self._launch_spec.mode,
+            owner_resource_id=deployment_id,
+            srm_base_url=srm_base_url,
+            timeout_seconds=timeout_seconds,
+        )
+
 
     def initiate_stop_from_request(self, reason: str) -> dict[str, object]:
         """
@@ -553,8 +376,7 @@ class LifecycleService:
                 raise WorkerAlreadyStopped("Worker is already stopped.")
             if self._stop_request_accepted or self._shutdown_in_progress:
                 raise StopAlreadyInProgress("Stop is already in progress.")
-            body, _srm_response, canonical, resolved_message = (
-                initiate_stop_status_update(
+            result = self._host.srm.initiate_stop_status_update(
                     runtime_id=self._launch_spec.runtime_id,
                     mode=self._launch_spec.mode.value,
                     owner_resource_id=deployment_id,
@@ -562,12 +384,14 @@ class LifecycleService:
                     reason=reason,
                     timeout_seconds=timeout_seconds,
                 )
-            )
+            body = result.get("body", result)
+            canonical = str(result.get("canonical", ""))
+            resolved_message = str(result.get("resolved_message", ""))
             self._stop_request_accepted = True
             self._stop_canonical_reason = canonical
             self._stop_resolved_message = resolved_message
             self._shutdown_in_progress = True
-            return dict(body)
+            return dict(body) if isinstance(body, Mapping) else {"status": str(body)}
 
     def _report_final_shutdown_to_srm(
         self,
@@ -587,15 +411,8 @@ class LifecycleService:
         timeout_seconds = float(
             getattr(wrs, "runtime_manager_heartbeat_timeout_seconds", 30.0) or 30.0
         )
-        reason_code, resolved_message = resolve_shutdown_report(
-            canonical_reason=canonical_reason,
-            message=message,
-        )
-        runtime_status = (
-            "FAILED" if is_failure_shutdown(canonical_reason) else "STOPPED"
-        )
         try:
-            srm_response = report_final_shutdown_to_srm(
+            self._host.srm.report_final_shutdown(
                 runtime_id=self._launch_spec.runtime_id,
                 mode=self._launch_spec.mode.value,
                 owner_resource_id=deployment_id,
@@ -604,143 +421,15 @@ class LifecycleService:
                 message=message,
                 timeout_seconds=timeout_seconds,
             )
-            print_shutdown_status_outcome(
-                runtime_status=runtime_status,
-                reason_code=reason_code,
-                message=resolved_message,
-                srm_response=srm_response,
-            )
         except Exception:
             pass
 
-    def push_replay_context(self, payload: Mapping[str, object]) -> dict[str, object]:
-        if self._runtime_dependencies is None:
-            self._runtime_dependencies = self._runtime_dependencies_initializer()
-        replay_gateway = (
-            self._runtime_dependencies.replay
-            if self._runtime_dependencies is not None
-            else None
-        )
-        if replay_gateway is None:
-            return {
-                "runtime_id": self._launch_spec.runtime_id,
-                "replay_session_id": "",
-                "replay_cursor": "",
-                "consumed_count": 0,
-                "observed_at": _utc_now(),
-            }
-
-        replay_meta = payload.get("replay")
-        replay_meta_dict = dict(replay_meta) if isinstance(replay_meta, Mapping) else {}
-        replay_session_id = str(replay_meta_dict.get("replay_session_id") or "")
-        replay_cursor = str(replay_meta_dict.get("replay_cursor") or "")
-        end_of_stream = bool(payload.get("end_of_stream", False))
-        self._runtime_state.set_last_replay_cursor(replay_cursor)
-        with self._replay_state_lock:
-            self._last_replay_cursor = replay_cursor
-
-        if (
-            self._launch_spec.mode is WorkerMode.BACKTEST
-            and self.backtest_replay_complete
-        ):
-            return {
-                "runtime_id": self._launch_spec.runtime_id,
-                "replay_session_id": replay_session_id,
-                "replay_cursor": replay_cursor,
-                "consumed_count": 0,
-                "observed_at": _utc_now(),
-            }
-
-        events = payload.get("events")
-        event_list = (
-            [item for item in events if isinstance(item, Mapping)]
-            if isinstance(events, list)
-            else []
-        )
-        batch_simulated = _parse_datetime(payload.get("simulated_time"))
-        wrs = self._worker_runtime_settings
-        if wrs is not None and getattr(wrs, "replay_ingress_trace_payload", False):
-            _print_replay_ingress_data_trace(
-                replay_session_id=replay_session_id,
-                replay_cursor=replay_cursor,
-                end_of_stream=end_of_stream,
-                batch_simulated=batch_simulated,
-                event_list=event_list,
-            )
-        bounds = _backtest_window_bounds(self._launch_spec)
-
-        consumed = 0
-        last_effective_sim: datetime | None = None
-        for event in event_list:
-            event_payload = event.get("payload")
-            tick_payload = (
-                dict(event_payload) if isinstance(event_payload, Mapping) else {}
-            )
-            tick_payload.setdefault("event_id", event.get("event_id"))
-            tick_payload.setdefault("event_type", event.get("event_type"))
-            tick_payload.setdefault("instrument_id", event.get("instrument_id"))
-            if "type" not in tick_payload and isinstance(
-                tick_payload.get("event_type"), str
-            ):
-                tick_payload["type"] = tick_payload["event_type"]
-            tick_payload.setdefault("sequence", event.get("sequence"))
-            tick_payload.setdefault("event_time", event.get("event_time"))
-
-            event_ts = _extract_market_timestamp(event, tick_payload) or batch_simulated
-            if (
-                self._launch_spec.mode is WorkerMode.BACKTEST
-                and bounds is not None
-                and event_ts is not None
-            ):
-                lo, hi = bounds
-                if event_ts < lo or event_ts > hi:
-                    continue
-
-            effective_sim = event_ts if event_ts is not None else batch_simulated
-
-            if self._launch_spec.mode is WorkerMode.BACKTEST:
-                wrs_bt = (
-                    getattr(self._worker_runtime_settings, "replay_bar_timeframe", None)
-                    or "1m"
-                )
-                if skip_backtest_replay_tick_for_ingest(
-                    tick_payload,
-                    expected_bar_timeframe=str(wrs_bt),
-                ):
-                    continue
-
-            replay_gateway.ingest_replay_tick(
-                tick_payload,
-                simulated_time=effective_sim,
-                strategy_callback=None,
-            )
-            dispatcher = (
-                self._ddd_wiring.event_dispatcher
-                if self._ddd_wiring is not None
-                else None
-            )
-            if dispatcher is not None:
-                dispatcher.dispatch_raw(tick_payload)
-            consumed += 1
-            if effective_sim is not None:
-                last_effective_sim = effective_sim
-
-        if last_effective_sim is not None:
-            self._runtime_state.record_data_event_timestamp(last_effective_sim)
-            with self._replay_state_lock:
-                self._last_data_event_timestamp = last_effective_sim
-
-        if self._launch_spec.mode is WorkerMode.BACKTEST and end_of_stream:
-            self._runtime_state.mark_backtest_replay_complete()
-            self._backtest_replay_complete = True
-
-        return {
-            "runtime_id": self._launch_spec.runtime_id,
-            "replay_session_id": replay_session_id,
-            "replay_cursor": replay_cursor,
-            "consumed_count": consumed,
-            "observed_at": _utc_now(),
-        }
+    def mark_backtest_market_data_stream_complete(self) -> None:
+        """Mark BACKTEST stdin market-data stream complete (``END_OF_STREAM`` or EOF)."""
+        if self._launch_spec.mode is not WorkerMode.BACKTEST:
+            return
+        self._runtime_state.mark_backtest_replay_complete()
+        self._backtest_replay_complete = True
 
     def _peek_last_data_event_timestamp(self) -> datetime | None:
         """UTC instant of the latest ingested bar/tick/quote (simulated or live feed)."""
@@ -771,14 +460,14 @@ class LifecycleService:
         if self._phase is WorkerPhase.READY:
             self._set_phase(WorkerPhase.RUNNING)
             self.emit_periodic_heartbeat()
-            self._maybe_start_live_market_data_feed()
-            self._maybe_start_portfolio_update_feed()
+            self._host.start_market_data_feed()
+            self._host.start_portfolio_update_feed()
 
     def start(self) -> None:
         if self._started:
             return
 
-        bootstrap_success: BootstrapPipelineSuccess | None = None
+        bootstrap_success: BootstrapSuccessView | None = None
         try:
             self._record_startup_step("validate_launch_metadata")
             validated = self._validator.validate(self._launch_payload)
@@ -814,17 +503,18 @@ class LifecycleService:
 
             if self._strategy_adapter is not None:
                 if self._runtime_dependencies is not None:
-                    self._ddd_wiring = build_lifecycle_ddd_wiring(
-                        launch_mode=self._launch_spec.mode,
-                        worker_runtime_settings=self._worker_runtime_settings,
-                        strategy_adapter=self._strategy_adapter,
-                        runtime_state=self._runtime_state,
-                        manager_gateway=self._runtime_dependencies.manager,
-                        shutdown_in_progress=lambda: self._shutdown_in_progress,
-                        emit_domain_event=self._emit_domain_event,
-                        domain_event_sampler=self._domain_event_sampler,
-                        mode=self._launch_spec.mode,
-                    )
+                    if self._ddd_wiring_builder is not None:
+                        self._ddd_wiring = self._ddd_wiring_builder(
+                            launch_mode=self._launch_spec.mode,
+                            worker_runtime_settings=self._worker_runtime_settings,
+                            strategy_adapter=self._strategy_adapter,
+                            runtime_state=self._runtime_state,
+                            manager_gateway=self._runtime_dependencies.manager,
+                            shutdown_in_progress=lambda: self._shutdown_in_progress,
+                            emit_domain_event=self._emit_domain_event,
+                            domain_event_sampler=self._host.domain_events,
+                            mode=self._launch_spec.mode,
+                        )
                 bind_result = self._strategy_adapter.bind_and_start()
                 if not bind_result.ok:
                     exc = RuntimeError(
@@ -958,10 +648,10 @@ class LifecycleService:
             self._shutdown_in_progress = True
 
         self._record_shutdown_step("stop_live_market_data_redis_feed")
-        self._stop_live_market_data_feed_worker()
+        self._host.stop_market_data_feed()
 
         self._record_shutdown_step("stop_portfolio_update_redis_feed")
-        self._stop_portfolio_update_feed_worker()
+        self._host.stop_portfolio_update_feed()
 
         self._record_shutdown_step("stop_heartbeat_periodic_jobs")
         if self._periodic_jobs is not None:
@@ -1017,50 +707,6 @@ class LifecycleService:
         self._started = False
         return True
 
-    def _paper_live_symbol_allowlist(self) -> set[str] | None:
-        params = self._launch_payload.get("parameters")
-        if not isinstance(params, dict):
-            return None
-        sym = params.get("symbol")
-        if isinstance(sym, str) and sym.strip():
-            return {sym.strip().upper()}
-            # return {"TSM"}
-        return None
-
-    def _paper_live_strategy_symbol(self) -> str | None:
-        allow = self._paper_live_symbol_allowlist()
-        if not allow:
-            return None
-        return next(iter(allow))
-
-    def _live_market_data_partition_scope(
-        self, *, partition_count: int
-    ) -> tuple[str, int, set[str]] | None:
-        """
-        Resolve strategy symbol and its single Redis stream partition for XREAD.
-
-        Returns ``(symbol_upper, partition, {symbol_upper})`` or ``None`` when
-        ``parameters.symbol`` is missing.
-        """
-        from runtime.infrastructure.redis.market_data_partition import market_data_partition
-
-        sym = self._paper_live_strategy_symbol()
-        if not sym:
-            print(
-                "[market-data-redis] parameters.symbol is required for PAPER/LIVE "
-                "market data (single-partition XREAD); not opening all partitions.",
-                flush=True,
-            )
-            return None
-        part = market_data_partition(sym, partition_count)
-        print(
-            "[market-data-redis] "
-            f"XREAD BLOCK 0 on partition {part} for strategy symbol {sym!r} "
-            f"(partition_count={partition_count})",
-            flush=True,
-        )
-        return sym, part, {sym}
-
     def _dispatch_paper_live_tick(self, tick: Mapping[str, Any]) -> None:
         if self._shutdown_in_progress:
             return
@@ -1077,405 +723,21 @@ class LifecycleService:
                 self._runtime_state.last_data_event_timestamp
             )
 
-    def _maybe_start_live_market_data_feed(self) -> None:
-        if self._live_md_feed_started:
-            return
-        if self._launch_spec.mode not in (WorkerMode.PAPER, WorkerMode.LIVE):
-            return
-        wrs = self._worker_runtime_settings
-        redis_url = (
-            str(getattr(wrs, "market_data_redis_url", "") or "").strip() if wrs else ""
-        )
-        if not redis_url:
-            print(
-                "[market-data-redis] not configured (set market_data_redis_url or "
-                "SWR_MARKET_DATA_REDIS_URL); PAPER/LIVE worker will idle until a feed is available.",
-                flush=True,
-            )
-            return
-        from runtime.infrastructure.redis.market_data_redis_feed import (
-            build_market_data_consumer_group_name,
-            expand_market_data_stream_keys,
-            market_data_read_command_fields,
-            market_data_redis_keys_from_settings,
-            redis_stream_key_prefixes_snapshot,
-            resolve_stream_names,
-            sanitize_redis_url_for_log,
-        )
-
-        feeds = tuple(getattr(wrs, "market_data_feeds", ()) or ("bars",))
-        bar_tf = (getattr(wrs, "replay_bar_timeframe", None) or "1m").strip() or "1m"
-        md_keys = market_data_redis_keys_from_settings(wrs)
-        self._market_data_stream_log(
-            level="INFO",
-            event_name="market_data_stream.step_resolve_stream_prefixes",
-            message="Step: stream prefixes from env/bundle (XREAD on md:stream:*; not Pub/Sub md:realtime:*).",
-            fields={
-                "bar_timeframe": bar_tf,
-                "feeds": list(feeds),
-                **redis_stream_key_prefixes_snapshot(md_keys),
-            },
-        )
-        stream_bases = resolve_stream_names(
-            feeds, bar_timeframe=bar_tf, redis_keys=md_keys
-        )
-        self._market_data_stream_log(
-            level="INFO",
-            event_name="market_data_stream.step_resolve_stream_bases",
-            message="Step: logical stream base keys for selected feeds (before :partition suffix).",
-            fields={
-                "stream_bases": list(stream_bases),
-            },
-        )
-        pc_raw = getattr(wrs, "market_data_realtime_partition_count", 128)
-        try:
-            partition_count = int(pc_raw)
-        except (TypeError, ValueError):
-            partition_count = 128
-        scope = self._live_market_data_partition_scope(partition_count=partition_count)
-        if scope is None:
-            return
-        strategy_symbol, partition, partition_symbols = scope
-        stream_names = expand_market_data_stream_keys(
-            stream_bases,
-            partition_count=partition_count,
-            symbol_filter=partition_symbols,
-        )
-        if not stream_names:
-            print(
-                "[market-data-redis] market_data_feeds produced no stream keys; "
-                "check parameters.data_source / market_data_streams / SWR_MARKET_DATA_STREAMS "
-                "and bar_timeframe (Redis bars are 1m / md:stream:am only).",
-                flush=True,
-            )
-            return
-        self._market_data_stream_log(
-            level="INFO",
-            event_name="market_data_stream.step_expand_partitioned_streams",
-            message="Step: physical Redis stream keys for XREAD / XREADGROUP (base:partition).",
-            fields={
-                "partition_count": partition_count,
-                "strategy_symbol": strategy_symbol,
-                "partition": partition,
-                "physical_stream_keys": list(stream_names),
-                "physical_stream_key_count": len(stream_names),
-            },
-        )
-        use_cg = bool(getattr(wrs, "market_data_redis_use_consumer_group", False))
-        cgp = (
-            str(
-                getattr(
-                    wrs, "market_data_consumer_group_prefix", "strategy-worker-runtime"
-                )
-                or "strategy-worker-runtime"
-            ).strip()
-            or "strategy-worker-runtime"
-        )
-        dep_raw = self._launch_payload.get("deployment_id")
-        dep_s = str(dep_raw).strip() if dep_raw is not None else ""
-        cg_preview = (
-            build_market_data_consumer_group_name(
-                group_prefix=cgp,
-                deployment_id=dep_s or None,
-                runtime_id=self._launch_spec.runtime_id,
-            )[:200]
-            if use_cg
-            else ""
-        )
-        cmd_preview = market_data_read_command_fields(
-            use_consumer_group=use_cg,
-            stream_names=list(stream_names),
-            stream_start_id=str(
-                getattr(wrs, "market_data_stream_start_id", "$") or "$"
-            ),
-            block_ms=int(getattr(wrs, "market_data_xread_block_ms", 0)),
-            count=int(getattr(wrs, "market_data_xread_count", 100)),
-            consumer_group_name=cg_preview if use_cg else "",
-            consumer_name="(assigned in swr-market-data-redis-feed thread)"
-            if use_cg
-            else "",
-        )
-        self._market_data_stream_log(
-            level="INFO",
-            event_name="market_data_stream.subscription_snapshot",
-            message="Resolved Redis stream subscription for market data ingress.",
-            fields={
-                "redis_url": sanitize_redis_url_for_log(redis_url),
-                "feeds": list(feeds),
-                "bar_timeframe": bar_tf,
-                "strategy_symbol": strategy_symbol,
-                "partition": partition,
-                "partition_count": partition_count,
-                "redis_stream_keys": list(stream_names),
-                "use_consumer_group": use_cg,
-                "consumer_group": cg_preview or None,
-                **redis_stream_key_prefixes_snapshot(md_keys),
-                **cmd_preview,
-            },
-        )
-        self._emit_domain_event(
-            StrategyWorkerDomainEvent.MARKET_DATA_SUBSCRIPTION_STARTED,
-            "Market data Redis subscription started",
-            event_extras={
-                "stream_count": len(stream_names),
-                "feeds": list(feeds),
-                "stage": "market_data_subscription",
-                "state": "started",
-            },
-        )
-        self._live_md_feed_started = True
-        self._live_md_feed_stop.clear()
-        thread = threading.Thread(
-            target=self._live_market_data_redis_worker,
-            name="swr-market-data-redis-feed",
-            daemon=False,
-        )
-        self._live_md_feed_thread = thread
-        thread.start()
-
-    def _stop_live_market_data_feed_worker(self) -> None:
-        self._live_md_feed_stop.set()
-        t = self._live_md_feed_thread
-        if t is not None and t.is_alive():
-            t.join(timeout=60.0)
-
-    def _live_market_data_redis_worker(self) -> None:
-        from runtime.infrastructure.redis.market_data_redis_feed import (
-            build_market_data_consumer_group_name,
-            expand_market_data_stream_keys,
-            market_data_read_command_fields,
-            market_data_redis_keys_from_settings,
-            redis_stream_key_prefixes_snapshot,
-            resolve_stream_names,
-            run_market_data_redis_loop,
-            sanitize_redis_stream_consumer_token,
-            sanitize_redis_url_for_log,
-        )
-
-        wrs = self._worker_runtime_settings
-        if wrs is None:
-            return
-        url = str(getattr(wrs, "market_data_redis_url", "") or "").strip()
-        if not url:
-            return
-        feeds = tuple(getattr(wrs, "market_data_feeds", ()) or ("bars",))
-        bar_tf = (getattr(wrs, "replay_bar_timeframe", None) or "1m").strip() or "1m"
-        md_keys = market_data_redis_keys_from_settings(wrs)
-        stream_bases = resolve_stream_names(
-            feeds, bar_timeframe=bar_tf, redis_keys=md_keys
-        )
-        if not stream_bases:
-            return
-        pc_raw = getattr(wrs, "market_data_realtime_partition_count", 128)
-        try:
-            partition_count = int(pc_raw)
-        except (TypeError, ValueError):
-            partition_count = 128
-        scope = self._live_market_data_partition_scope(partition_count=partition_count)
-        if scope is None:
-            return
-        strategy_symbol, partition, partition_symbols = scope
-        stream_names = expand_market_data_stream_keys(
-            stream_bases,
-            partition_count=partition_count,
-            symbol_filter=partition_symbols,
-        )
-        if not stream_names:
-            return
-        use_cg = bool(getattr(wrs, "market_data_redis_use_consumer_group", False))
-        cgp = (
-            str(
-                getattr(
-                    wrs, "market_data_consumer_group_prefix", "strategy-worker-runtime"
-                )
-                or "strategy-worker-runtime"
-            ).strip()
-            or "strategy-worker-runtime"
-        )
-        cnp = (
-            str(
-                getattr(
-                    wrs,
-                    "market_data_consumer_name_prefix",
-                    "strategy-worker-runtime-worker",
-                )
-                or "strategy-worker-runtime-worker"
-            ).strip()
-            or "strategy-worker-runtime-worker"
-        )
-        dep_raw = self._launch_payload.get("deployment_id")
-        dep_s = str(dep_raw).strip() if dep_raw is not None else ""
-        group = build_market_data_consumer_group_name(
-            group_prefix=cgp,
-            deployment_id=dep_s or None,
-            runtime_id=self._launch_spec.runtime_id,
-        )[:200]
-        consumer = (
-            f"{sanitize_redis_stream_consumer_token(cnp)}-"
-            f"{os.getpid()}-{uuid.uuid4().hex[:10]}"
-        )
-        self._market_data_stream_log(
-            level="INFO",
-            event_name="market_data_stream.step_worker_thread_ingress",
-            message="Step: worker thread starting Redis ingress (same plan as subscription_snapshot).",
-            fields={
-                "redis_url": sanitize_redis_url_for_log(url),
-                "feeds": list(feeds),
-                "bar_timeframe": bar_tf,
-                "strategy_symbol": strategy_symbol,
-                "partition": partition,
-                "partition_count": partition_count,
-                "physical_stream_keys": list(stream_names),
-                "use_consumer_group": use_cg,
-                "consumer_group": group if use_cg else None,
-                "consumer_name": consumer if use_cg else None,
-                **redis_stream_key_prefixes_snapshot(md_keys),
-                **market_data_read_command_fields(
-                    use_consumer_group=use_cg,
-                    stream_names=list(stream_names),
-                    stream_start_id=str(
-                        getattr(wrs, "market_data_stream_start_id", "$") or "$"
-                    ),
-                    block_ms=int(getattr(wrs, "market_data_xread_block_ms", 0)),
-                    count=int(getattr(wrs, "market_data_xread_count", 100)),
-                    consumer_group_name=group if use_cg else "",
-                    consumer_name=consumer if use_cg else "",
-                ),
-            },
-        )
-        run_market_data_redis_loop(
-            redis_url=url,
-            stream_names=stream_names,
-            stream_start_id=str(
-                getattr(wrs, "market_data_stream_start_id", "$") or "$"
-            ),
-            block_ms=int(getattr(wrs, "market_data_xread_block_ms", 0)),
-            count=int(getattr(wrs, "market_data_xread_count", 100)),
-            strategy_symbol=strategy_symbol,
-            on_tick=self._dispatch_paper_live_tick,
-            should_stop=self._live_md_feed_stop,
-            bar_timeframe=bar_tf,
-            redis_keys=md_keys,
-            use_consumer_group=use_cg,
-            consumer_group_name=group if use_cg else "",
-            consumer_name=consumer if use_cg else "",
-            log=lambda **kw: self._market_data_stream_log(
-                level=str(kw.get("level") or "INFO"),
-                event_name=str(kw.get("event_name") or ""),
-                message=str(kw.get("message") or ""),
-                fields=dict(kw.get("fields") or {}),
-            ),
-        )
-
-    def _maybe_start_portfolio_update_feed(self) -> None:
-        if self._portfolio_update_feed_started:
-            return
-        if self._launch_spec.mode not in (WorkerMode.PAPER, WorkerMode.LIVE):
+    def _dispatch_backtest_stdin_tick(self, tick: Mapping[str, Any]) -> None:
+        """Route BACKTEST stdin market-data ticks through the shared EventDispatcher."""
+        if self._shutdown_in_progress:
             return
         wrs = self._worker_runtime_settings
-        if wrs is None or not bool(getattr(wrs, "portfolio_update_enabled", True)):
-            return
-        job_id = str(self._launch_spec.job_id or "").strip()
-        if not job_id:
-            print(
-                "[portfolio-update-redis] launch job_id is required for portfolio "
-                "balance subscription; feed not started.",
-                flush=True,
-            )
-            return
-        redis_url = str(getattr(wrs, "portfolio_update_redis_url", "") or "").strip()
-        if not redis_url:
-            redis_url = str(getattr(wrs, "market_data_redis_url", "") or "").strip()
-        if not redis_url:
-            print(
-                "[portfolio-update-redis] not configured (set portfolio_update_redis_url, "
-                "SWR_PORTFOLIO_UPDATE_REDIS_URL, or market_data_redis_url).",
-                flush=True,
-            )
-            return
-        pc_raw = getattr(wrs, "market_data_realtime_partition_count", 128)
-        try:
-            partition_count = int(pc_raw)
-        except (TypeError, ValueError):
-            partition_count = 128
-        from runtime.application.event_handling.portfolio_update_contract import (
-            portfolio_update_channel_name,
-            portfolio_update_partition,
+        bar_tf = (
+            str(getattr(wrs, "replay_bar_timeframe", None) or "1m")
+            if wrs is not None
+            else "1m"
         )
-
-        partition = portfolio_update_partition(job_id, partition_count)
-        prefix = str(
-            getattr(wrs, "portfolio_update_channel_prefix", "portfolio:update")
-            or "portfolio:update"
-        ).strip()
-        channel = portfolio_update_channel_name(prefix, partition=partition)
-        print(
-            "[portfolio-update-redis] "
-            f"SUBSCRIBE {channel!r} for job_id={job_id!r} "
-            f"(partition={partition}, partition_count={partition_count})",
-            flush=True,
-        )
-        self._portfolio_update_feed_started = True
-        self._portfolio_update_feed_stop.clear()
-        thread = threading.Thread(
-            target=self._portfolio_update_redis_worker,
-            name="swr-portfolio-update-feed",
-            daemon=False,
-        )
-        self._portfolio_update_feed_thread = thread
-        thread.start()
-
-    def _stop_portfolio_update_feed_worker(self) -> None:
-        self._portfolio_update_feed_stop.set()
-        t = self._portfolio_update_feed_thread
-        if t is not None and t.is_alive():
-            t.join(timeout=60.0)
-
-    def _portfolio_update_redis_worker(self) -> None:
-        from runtime.infrastructure.redis.redis_portfolio_update_adapter import (
-            RedisPortfolioUpdateAdapter,
-        )
-
-        wrs = self._worker_runtime_settings
-        if wrs is None:
+        if self._host.backtest_bar_timeframe_filter.should_skip(
+            tick, expected_bar_timeframe=bar_tf
+        ):
             return
-        job_id = str(self._launch_spec.job_id or "").strip()
-        if not job_id:
-            return
-        redis_url = str(getattr(wrs, "portfolio_update_redis_url", "") or "").strip()
-        if not redis_url:
-            redis_url = str(getattr(wrs, "market_data_redis_url", "") or "").strip()
-        if not redis_url:
-            return
-        pc_raw = getattr(wrs, "market_data_realtime_partition_count", 128)
-        try:
-            partition_count = int(pc_raw)
-        except (TypeError, ValueError):
-            partition_count = 128
-        prefix = str(
-            getattr(wrs, "portfolio_update_channel_prefix", "portfolio:update")
-            or "portfolio:update"
-        ).strip()
-        adapter = RedisPortfolioUpdateAdapter(
-            redis_url=redis_url,
-            job_id=job_id,
-            partition_count=partition_count,
-            channel_prefix=prefix,
-            on_event=self._dispatch_portfolio_updated_event,
-            on_rejected=lambda reason, payload: self._portfolio_update_stream_log(
-                level="WARNING",
-                event_name="portfolio_update_adapter.rejected",
-                message=f"Portfolio update rejected: {reason}",
-                fields={"reason": reason, "job_id": str(payload.get("job_id") or "")},
-            ),
-            log=lambda **kw: self._portfolio_update_stream_log(
-                level=str(kw.get("level") or "INFO"),
-                event_name=str(kw.get("event_name") or ""),
-                message=str(kw.get("message") or ""),
-                fields=dict(kw.get("fields") or {}),
-            ),
-        )
-        adapter.run_pubsub_loop(should_stop=self._portfolio_update_feed_stop)
+        self._dispatch_paper_live_tick(tick)
 
     def _portfolio_update_stream_log(
         self,
@@ -1513,7 +775,9 @@ class LifecycleService:
         adapter = self._strategy_adapter
         if adapter is None:
             return
-        bridge = getattr(adapter, "_replay_sdk_bridge", None)
+        bridge = getattr(adapter, "_backtest_sdk_bridge", None) or getattr(
+            adapter, "_replay_sdk_bridge", None
+        )
         if bridge is None:
             return
         account = bridge.strategy_context.account
@@ -1537,16 +801,6 @@ class LifecycleService:
                         },
                     }
                 )
-
-    def _apply_portfolio_balance_update(self, msg: Mapping[str, Any]) -> None:
-        """Legacy wire-dict entry; prefer :meth:`_dispatch_portfolio_updated_event`."""
-        from runtime.application.event_handling.event_dispatcher import EventDispatcher
-
-        job_id = str(self._launch_spec.job_id or "").strip()
-        event = EventDispatcher.portfolio_from_raw(msg, expected_job_id=job_id)
-        if event is None:
-            return
-        self._dispatch_portfolio_updated_event(event)
 
     def _rollback_partial_startup(self, error: Exception) -> None:
         reason_code = normalize_runtime_reason_code(
@@ -1572,30 +826,30 @@ class LifecycleService:
                 # even if manager signaling infrastructure cannot be initialized.
                 self._runtime_dependencies = None
 
-        if isinstance(error, BootstrapFailure):
+        if getattr(error, "stage", None) is not None:
             wrs = self._worker_runtime_settings
             if wrs is not None:
                 srm_base_url = str(
                     getattr(wrs, "strategy_runtime_manager_base_url", "") or ""
                 ).strip()
                 if srm_base_url:
-                    deployment_id = str(getattr(wrs, "deployment_id", "") or "").strip()
+                    deployment_id = str(
+                        getattr(wrs, "deployment_id", "") or ""
+                    ).strip()
                     timeout_seconds = float(
-                        getattr(wrs, "runtime_manager_heartbeat_timeout_seconds", 30.0)
+                        getattr(
+                            wrs, "runtime_manager_heartbeat_timeout_seconds", 30.0
+                        )
                         or 30.0
                     )
                     try:
-                        srm_response = report_bootstrap_failure_to_srm(
+                        self._host.srm.report_bootstrap_failure(
                             error,
                             runtime_id=self._launch_spec.runtime_id,
                             mode=self._launch_spec.mode.value,
                             owner_resource_id=deployment_id,
                             srm_base_url=srm_base_url,
                             timeout_seconds=timeout_seconds,
-                        )
-                        print_bootstrap_failure_outcome(
-                            error,
-                            srm_response=srm_response,
                         )
                     except Exception:
                         pass
@@ -1654,30 +908,8 @@ class LifecycleService:
     def _validation_outcome(
         self, error: Exception
     ) -> tuple[list[str], list[str], list[str]]:
-        if isinstance(error, RuntimeStartValidationFailedError):
-            return (
-                [],
-                ["validate_launch_metadata"],
-                [stage.value for stage in _BOOTSTRAP_STAGE_ORDER],
-            )
+        return self._host.classify_bootstrap_stages(error, self._startup_steps)
 
-        if isinstance(error, BootstrapFailure):
-            failed_stage = error.stage
-            try:
-                failed_index = _BOOTSTRAP_STAGE_ORDER.index(failed_stage)
-            except ValueError:
-                return ([], [str(failed_stage.value)], [])
-
-            passed = [stage.value for stage in _BOOTSTRAP_STAGE_ORDER[:failed_index]]
-            not_checked = [
-                stage.value for stage in _BOOTSTRAP_STAGE_ORDER[failed_index + 1 :]
-            ]
-            return (passed, [failed_stage.value], not_checked)
-
-        if "validate_sdk_contract" in self._startup_steps:
-            return ([stage.value for stage in _BOOTSTRAP_STAGE_ORDER], [], [])
-
-        return ([], [], [stage.value for stage in _BOOTSTRAP_STAGE_ORDER])
 
     def _record_order_intent_for_journal(
         self,
@@ -1688,7 +920,7 @@ class LifecycleService:
         if self._state_journal is not None:
             self._state_journal.record_order_intent(source, payload, result)
         if self._launch_spec.mode in (WorkerMode.PAPER, WorkerMode.LIVE):
-            count, sample = self._domain_event_sampler.next("order_intent_emitted")
+            count, sample = self._host.domain_events.next("order_intent_emitted")
             extras: dict[str, Any] = {
                 "source": source,
                 "symbol": str(payload.get("symbol") or ""),
@@ -1707,24 +939,16 @@ class LifecycleService:
             )
 
     def _platform_trace(self) -> PlatformTraceSpec | None:
-        wrs = self._worker_runtime_settings
-        if not isinstance(wrs, Settings):
-            return None
-        return build_platform_trace_from_settings(wrs)
+        return self._host.sdk_bridge.platform_trace(self._worker_runtime_settings)
+
 
     def _order_intent_env_correlation(self) -> str:
         wrs = self._worker_runtime_settings
         if wrs is None:
             return ""
-        return str(
-            getattr(wrs, "order_intent_correlation_id", None)
-            or getattr(wrs, "oms_correlation_id", "")
-            or ""
-        )
+        return str(getattr(wrs, "order_intent_correlation_id", None) or "")
 
-    def _simulated_clock_seeded_from_dependencies(self) -> SimulatedClock:
-        """Wall- or dependency-seeded simulated clock for SDK context binding (paper/live)."""
-        clock = SimulatedClock()
+    def _simulated_clock_seeded_from_dependencies(self) -> object:
         wall = _utc_now()
         if self._runtime_dependencies is not None:
             now_fn = getattr(self._runtime_dependencies.clock, "now", None)
@@ -1733,33 +957,25 @@ class LifecycleService:
                     wall = now_fn()
                 except Exception:
                     pass
-        if wall.tzinfo is None or wall.utcoffset() is None:
-            wall = wall.replace(tzinfo=timezone.utc)
-        clock.set_time(wall.astimezone(timezone.utc))
-        return clock
+        return self._host.simulated_clock.build_seeded(wall)
 
-    def _make_replay_sdk_bridge(
+
+    def _make_backtest_sdk_bridge(
         self,
         *,
         strategy_instance: object,
-        simulated_clock: SimulatedClock,
-    ) -> tuple[ReplaySdkBridge, Callable[[Any], dict[str, Any]] | None]:
+        simulated_clock: object,
+    ) -> tuple[object | None, Callable[[Any], dict[str, Any]] | None]:
         assert self._runtime_dependencies is not None
-        wrs = self._worker_runtime_settings
-        submitter = build_sdk_order_intent_submitter(
-            dependencies=self._runtime_dependencies,
-            launch_spec=self._launch_spec,
+        return self._host.sdk_bridge.build(
+            strategy_instance=strategy_instance,
+            simulated_clock=simulated_clock,
+            launch=self._launch_spec,
+            launch_payload=self._launch_payload,
             worker_identity=self._worker_identity,
+            runtime_dependencies=self._runtime_dependencies,
+            worker_config=self._worker_runtime_settings,
             on_order_intent_result=self._record_order_intent_for_journal,
-            order_intent_correlation_id=(
-                getattr(wrs, "order_intent_correlation_id", None)
-                or getattr(wrs, "oms_correlation_id", "")
-                if wrs is not None
-                else ""
-            ),
-            disable_order_intent_grpc=(
-                wrs.disable_order_intent_grpc if wrs is not None else False
-            ),
             latest_market_event_at=self._peek_last_data_event_timestamp,
             allocate_order_intent_id=(
                 self._state_journal.allocate_order_intent_id
@@ -1768,25 +984,7 @@ class LifecycleService:
             ),
             platform_trace=self._platform_trace(),
         )
-        calculation_spec = None
-        if isinstance(wrs, Settings):
-            calculation_spec = build_runtime_specs_from_settings(wrs).calculation
-        default_tf = (
-            calculation_spec.bar_timeframe
-            if calculation_spec is not None
-            else (wrs.replay_bar_timeframe if wrs is not None else "1m")
-        )
-        bridge = build_replay_sdk_bridge(
-            strategy=strategy_instance,
-            launch_spec=self._launch_spec,
-            worker_identity=self._worker_identity,
-            simulated_clock=simulated_clock,
-            launch_payload=self._launch_payload,
-            submit_sdk_order_intent=submitter,
-            default_timeframe=default_tf,
-            calculation_spec=calculation_spec,
-        )
-        return bridge, submitter
+
 
     def _emit_backtest_order_submitter_bridge_logs(
         self, submitter: Callable[[Any], dict[str, Any]] | None
@@ -1803,9 +1001,7 @@ class LifecycleService:
                     "this is fixed."
                 ),
                 level=logging.WARNING,
-                event_extras={
-                    "replay_type": type(self._runtime_dependencies.replay).__name__,
-                },
+                event_extras={},
             )
             return
         if self._state_journal is None:
@@ -1832,12 +1028,14 @@ class LifecycleService:
 
     def _initialize_strategy_coordinator(
         self,
-        success: BootstrapPipelineSuccess,
+        success: BootstrapSuccessView,
     ) -> StrategyAdapter | None:
         if self._strategy_instance_manager is None:
             return None
 
-        assignment_key = StrategyAssignmentKey(
+        from types import SimpleNamespace
+
+        assignment_key = SimpleNamespace(
             runtime_id=self._launch_spec.runtime_id,
             strategy_version_id=self._launch_spec.strategy_version_id,
             tenant_id=self._launch_spec.tenant_id,
@@ -1855,9 +1053,9 @@ class LifecycleService:
             if (
                 self._launch_spec.mode is WorkerMode.BACKTEST
                 and self._runtime_dependencies is not None
-                and isinstance(self._runtime_dependencies.clock, SimulatedClock)
+                and self._host.simulated_clock.is_simulated(self._runtime_dependencies.clock)
             ):
-                bridge, submitter = self._make_replay_sdk_bridge(
+                bridge, submitter = self._make_backtest_sdk_bridge(
                     strategy_instance=strategy_instance,
                     simulated_clock=self._runtime_dependencies.clock,
                 )
@@ -1868,13 +1066,13 @@ class LifecycleService:
                 and callable(getattr(strategy_instance, "_bind_context", None))
             ):
                 sdk_clock = self._simulated_clock_seeded_from_dependencies()
-                bridge, _ = self._make_replay_sdk_bridge(
+                bridge, _ = self._make_backtest_sdk_bridge(
                     strategy_instance=strategy_instance,
                     simulated_clock=sdk_clock,
                 )
             return StrategyAdapter(
                 strategy=strategy_instance,
-                replay_sdk_bridge=bridge,
+                backtest_sdk_bridge=bridge,
             )
 
         return self._strategy_instance_manager.create(assignment_key, build_adapter)
@@ -1908,23 +1106,15 @@ class LifecycleService:
         log = self._runtime_logger
         if log is None:
             return
-        merged_extras: dict[str, Any] = dict(event_extras or {})
-        trace = self._platform_trace()
-        if trace is not None:
-            merged_extras = trace.merge_event_extras(
-                merged_extras,
-                env_correlation_fallback=self._order_intent_env_correlation(),
-            )
-        try:
-            emit_bound_domain_event(
-                log,
-                event_name=event,
-                message=message,
-                level=level,
-                event_extras=merged_extras,
-            )
-        except Exception:
-            return
+        self._host.domain_events.emit_bound(
+            log,
+            event=event,
+            message=message,
+            level=level,
+            event_extras=event_extras,
+            platform_trace=self._platform_trace(),
+            env_correlation_fallback=self._order_intent_env_correlation(),
+        )
 
     def _record_startup_step(self, step: str) -> None:
         self._startup_steps.append(step)
@@ -2058,7 +1248,7 @@ class LifecycleService:
                 )
                 try:
                     self._emit_srm_runtime_status(
-                        source=SRM_STATUS_SOURCE_UPDATE,
+                        source=self._host.srm_status_source_update,
                         reason_code=normalized_reason,
                         message=failure_message,
                         retryable=False,

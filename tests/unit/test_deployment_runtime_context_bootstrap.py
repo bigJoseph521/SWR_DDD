@@ -11,7 +11,7 @@ from runtime.infrastructure.strategy_loader.deployment_runtime_context_bootstrap
     fetch_bundle_from_deployment_runtime_context,
     worker_bundle_dict_from_runtime_context_response,
 )
-from runtime.bootstrap.launch_spec import LaunchSpecValidationError
+from runtime.domain.launch_spec import LaunchSpecValidationError
 from runtime.infrastructure.config.settings import load_settings
 
 

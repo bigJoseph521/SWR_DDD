@@ -18,7 +18,7 @@ from runtime.application.strategy_execution.event_mapper import (
     MarketTickEvent,
 )
 from runtime.application.strategy_execution.event_mapper import TimerEvent as WireTimerEvent
-from runtime.bootstrap.launch_spec import LaunchSpec
+from runtime.domain.launch_spec import LaunchSpec
 from runtime.infrastructure.strategy_loader.replay_runtime_support import (
     BarHistory,
     CashBalance,
@@ -185,7 +185,7 @@ def _dispatch_hook_payload(
 class GrpcSubmittingOrderService(DefaultOrderService):
     """
     DefaultOrderService that forwards each constructed replay intent to the
-    runtime gRPC submitter (backtest or OMS).
+    runtime Risk Service order-intent submitter.
     """
 
     __slots__ = ("_grpc_submit",)
@@ -748,6 +748,7 @@ def _seed_cash_from_launch_payload(
     return currency, max(0.0, cash)
 
 
-# Backward-compatible names
+# Backward-compatible names (transport/SDK; not a separate strategy execution path).
 ReplayBarBridge = ReplaySdkBridge
-build_replay_bar_bridge = build_replay_sdk_bridge
+BacktestSdkBridge = ReplaySdkBridge
+build_backtest_sdk_bridge = build_replay_sdk_bridge

@@ -6,7 +6,7 @@ from pathlib import Path
 from runtime.infrastructure.strategy_loader.deployment_runtime_context_bootstrap import (
     worker_bundle_dict_from_runtime_context_response,
 )
-from runtime.bootstrap.launch_spec import LaunchSpec
+from runtime.domain.launch_spec import LaunchSpec
 from runtime.infrastructure.sdk.replay_sdk_bridge import (
     _seed_cash_from_launch_payload,
     build_replay_sdk_bridge,

@@ -4,7 +4,7 @@ import json
 import threading
 from http.client import HTTPConnection
 from runtime.interface.http.stop_control_server import StopControlHttpServer
-from runtime.infrastructure.http.auth import (
+from runtime.application.http.internal_auth import (
     TRUST_CLASS_CONTROL,
 )
 

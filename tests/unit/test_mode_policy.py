@@ -33,7 +33,7 @@ def test_replay_chunk_direct_fetch_is_blocked_for_all_modes(mode: WorkerMode) ->
     assert exc_info.value.details["event_type"] == "replay.chunk.direct.fetch"
 
 
-def test_oms_capability_is_allowed_in_backtest() -> None:
+def test_risk_order_intent_capability_is_allowed_in_backtest() -> None:
     policy = get_mode_policy(WorkerMode.BACKTEST)
     require_capability(policy, Capability.RISK_ORDER_INTENT_EGRESS)
 

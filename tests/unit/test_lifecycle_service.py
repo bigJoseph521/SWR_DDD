@@ -17,7 +17,7 @@ from runtime.infrastructure.strategy_loader.artifact_verifier import (
     ArtifactVerificationResult,
 )
 from runtime.infrastructure.strategy_loader.entrypoint_loader import EntrypointLoadResult
-from runtime.bootstrap.failures import (
+from runtime.domain.bootstrap_failures import (
     ArtifactFetchFailure,
     BootstrapFailure,
     EntrypointLoadFailure,
@@ -28,7 +28,7 @@ from runtime.bootstrap.minimal_env_validation import (
     SWR_ENTRYPOINT_INVALID,
     SWR_SDK_COMPATIBILITY_FAILED,
 )
-from runtime.bootstrap.launch_spec import LaunchSpec
+from runtime.domain.launch_spec import LaunchSpec
 from runtime.bootstrap.sdk_contract_validator import (
     BootstrapPipelineResult,
     BootstrapPipelineSuccess,
@@ -43,7 +43,6 @@ from runtime.domain.worker_identity import WorkerIdentity
 from runtime.domain.events.dedupe import LifecycleSignalDedupe
 from runtime.infrastructure.clock.clock import SimulatedClock, SystemClock
 from runtime.infrastructure.http.srm.manager_gateway import ManagerGateway
-from runtime.infrastructure.grpc.replay.replay_gateway import ReplayGateway
 from runtime.infrastructure.observability.logger import (
     RuntimeLogContext,
     bind_runtime_context,
@@ -180,7 +179,6 @@ def _runtime_dependencies(
             dedupe=LifecycleSignalDedupe(),
         ),
         risk_order_intent=None,
-        replay=None,
     )
 
 
@@ -220,9 +218,6 @@ def test_should_stop_for_completed_backtest_job_after_end_of_stream() -> None:
     manager_client = _FakeManagerClient()
     handler = _CaptureHandler()
     clock = SimulatedClock()
-    replay = ReplayGateway(
-        get_mode_policy(WorkerMode.BACKTEST), simulated_clock=clock
-    )
 
     def _deps() -> RuntimeDependencies:
         return RuntimeDependencies(
@@ -234,7 +229,6 @@ def test_should_stop_for_completed_backtest_job_after_end_of_stream() -> None:
                 dedupe=LifecycleSignalDedupe(),
             ),
             risk_order_intent=None,
-            replay=replay,
         )
 
     class _Strategy:
@@ -257,13 +251,7 @@ def test_should_stop_for_completed_backtest_job_after_end_of_stream() -> None:
     lifecycle.start()
     lifecycle.run()
     assert lifecycle.should_stop_for_completed_backtest_job() is False
-    lifecycle.push_replay_context(
-        {
-            "replay": {"replay_session_id": "s1", "replay_cursor": "c0"},
-            "events": [],
-            "end_of_stream": True,
-        }
-    )
+    lifecycle.mark_backtest_market_data_stream_complete()
     assert lifecycle.should_stop_for_completed_backtest_job() is True
 
 
@@ -338,14 +326,12 @@ def test_startup_and_shutdown_run_in_exact_order(
         worker_runtime_settings=settings,
     )
 
-    with patch(
-        "runtime.application.lifecycle.lifecycle_service.report_bootstrap_success_to_srm"
+    with patch.object(
+        lifecycle._host.srm, "report_bootstrap_success"
     ) as success_report_mock:
         lifecycle.start()
     success_report_mock.assert_called_once()
-    with patch(
-        "runtime.application.lifecycle.lifecycle_service.report_final_shutdown_to_srm"
-    ) as final_mock:
+    with patch.object(lifecycle._host.srm, "report_final_shutdown") as final_mock:
         stopped = lifecycle.stop()
     final_mock.assert_called_once()
 
@@ -387,9 +373,6 @@ def test_backtest_runtime_job_completed_stop_sets_phase_completed() -> None:
     manager_client = _FakeManagerClient()
     handler = _CaptureHandler()
     clock = SimulatedClock()
-    replay = ReplayGateway(
-        get_mode_policy(WorkerMode.BACKTEST), simulated_clock=clock
-    )
 
     def _deps() -> RuntimeDependencies:
         return RuntimeDependencies(
@@ -401,7 +384,6 @@ def test_backtest_runtime_job_completed_stop_sets_phase_completed() -> None:
                 dedupe=LifecycleSignalDedupe(),
             ),
             risk_order_intent=None,
-            replay=replay,
         )
 
     class _Strategy:
@@ -567,8 +549,8 @@ def test_startup_aborts_for_bootstrap_failures(
         worker_runtime_settings=settings,
     )
 
-    with patch(
-        "runtime.application.lifecycle.lifecycle_service.report_bootstrap_failure_to_srm"
+    with patch.object(
+        lifecycle._host.srm, "report_bootstrap_failure"
     ) as report_mock:
         with pytest.raises(type(failure)):
             lifecycle.start()
@@ -787,10 +769,6 @@ def test_manager_stop_checkpoint_uses_last_handled_market_timestamp_in_backtest(
     manager_client = _FakeManagerClient()
     handler = _CaptureHandler()
     clock = SimulatedClock()
-    clock = SimulatedClock()
-    replay = ReplayGateway(
-        get_mode_policy(WorkerMode.BACKTEST), simulated_clock=clock
-    )
     state_journal = MagicMock()
 
     def _deps() -> RuntimeDependencies:
@@ -803,7 +781,6 @@ def test_manager_stop_checkpoint_uses_last_handled_market_timestamp_in_backtest(
                 dedupe=LifecycleSignalDedupe(),
             ),
             risk_order_intent=None,
-            replay=replay,
         )
 
     lifecycle = LifecycleService(
@@ -819,40 +796,22 @@ def test_manager_stop_checkpoint_uses_last_handled_market_timestamp_in_backtest(
     )
 
     market_ts = datetime(2020, 1, 1, 0, 0, 30, tzinfo=timezone.utc)
-    lifecycle.push_replay_context(
-        {
-            "replay": {"replay_session_id": "s1", "replay_cursor": "c10"},
-            "events": [
-                {
-                    "event_id": "e1",
-                    "event_type": "market.bar",
-                    "instrument_id": "X",
-                    # Intentionally omit top-level event_time.
-                    "payload": {
-                        "timestamp": market_ts.isoformat().replace("+00:00", "Z")
-                    },
-                }
-            ],
-            "end_of_stream": False,
-        }
-    )
+    with lifecycle._replay_state_lock:
+        lifecycle._last_data_event_timestamp = market_ts
     lifecycle.record_manager_stop_request_checkpoint()
 
     state_journal.record_manager_stop_request.assert_called_once()
     kwargs = state_journal.record_manager_stop_request.call_args.kwargs
     assert kwargs["last_data_event_at"] == market_ts
-    assert kwargs["last_replay_cursor"] == "c10"
+    assert kwargs["last_replay_cursor"] == ""
 
 
-def test_manager_stop_checkpoint_records_latest_replay_cursor_without_events() -> None:
+def test_manager_stop_checkpoint_records_empty_replay_cursor_without_batch_ingress() -> None:
     payload = _launch_payload("BACKTEST")
     spec = LaunchSpec.from_payload(payload)
     manager_client = _FakeManagerClient()
     handler = _CaptureHandler()
     clock = SimulatedClock()
-    replay = ReplayGateway(
-        get_mode_policy(WorkerMode.BACKTEST), simulated_clock=clock
-    )
     state_journal = MagicMock()
 
     def _deps() -> RuntimeDependencies:
@@ -865,7 +824,6 @@ def test_manager_stop_checkpoint_records_latest_replay_cursor_without_events() -
                 dedupe=LifecycleSignalDedupe(),
             ),
             risk_order_intent=None,
-            replay=replay,
         )
 
     lifecycle = LifecycleService(
@@ -879,18 +837,11 @@ def test_manager_stop_checkpoint_records_latest_replay_cursor_without_events() -
         strategy_instance_manager=None,
         state_journal=state_journal,
     )
-    lifecycle.push_replay_context(
-        {
-            "replay": {"replay_session_id": "s1", "replay_cursor": "cursor-eos"},
-            "events": [],
-            "end_of_stream": True,
-        }
-    )
     lifecycle.record_manager_stop_request_checkpoint()
 
     state_journal.record_manager_stop_request.assert_called_once()
     kwargs = state_journal.record_manager_stop_request.call_args.kwargs
-    assert kwargs["last_replay_cursor"] == "cursor-eos"
+    assert kwargs["last_replay_cursor"] == ""
 
 
 def test_emit_periodic_heartbeat_emits_manager_signal(
@@ -999,9 +950,6 @@ def test_backtest_lifecycle_bind_and_start_invokes_sdk_hooks() -> None:
     manager_client = _FakeManagerClient()
     handler = _CaptureHandler()
     clock = SimulatedClock()
-    replay = ReplayGateway(
-        get_mode_policy(WorkerMode.BACKTEST), simulated_clock=clock
-    )
     recorded: list[str] = []
 
     class _HookedStrategy(AlphovexStrategy):
@@ -1021,7 +969,6 @@ def test_backtest_lifecycle_bind_and_start_invokes_sdk_hooks() -> None:
                 dedupe=LifecycleSignalDedupe(),
             ),
             risk_order_intent=None,
-            replay=replay,
         )
 
     lifecycle = LifecycleService(
@@ -1037,6 +984,9 @@ def test_backtest_lifecycle_bind_and_start_invokes_sdk_hooks() -> None:
         diagnostic_flusher=_DiagnosticFlusher(),
         closeables=(manager_client,),
     )
+    from runtime.bootstrap.lifecycle_host_wiring import build_lifecycle_host_ports
+
+    lifecycle.attach_host_ports(build_lifecycle_host_ports(lifecycle))
     lifecycle.start()
 
     assert recorded == ["on_init", "on_start"]
@@ -1082,6 +1032,9 @@ def test_paper_lifecycle_bind_and_start_invokes_sdk_hooks() -> None:
         diagnostic_flusher=_DiagnosticFlusher(),
         closeables=(manager_client,),
     )
+    from runtime.bootstrap.lifecycle_host_wiring import build_lifecycle_host_ports
+
+    lifecycle.attach_host_ports(build_lifecycle_host_ports(lifecycle))
     lifecycle.start()
 
     assert recorded == ["on_init", "on_start"]

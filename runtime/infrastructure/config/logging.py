@@ -5,7 +5,7 @@ import logging
 import sys
 from typing import Mapping
 
-from runtime.bootstrap.platform_trace_builder import build_platform_trace_spec_from_launch
+from runtime.domain.platform_trace_factory import build_platform_trace_spec_from_launch
 from runtime.infrastructure.config.settings import Settings
 from runtime.domain.worker_identity import WorkerIdentity
 from runtime.infrastructure.observability.logger import RuntimeLogContext

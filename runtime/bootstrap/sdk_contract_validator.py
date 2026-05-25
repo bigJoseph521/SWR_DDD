@@ -23,11 +23,11 @@ from runtime.infrastructure.strategy_loader.entrypoint_loader import (
     EntrypointLoader,
     EntrypointLoadResult,
 )
-from runtime.bootstrap.failures import (
+from runtime.domain.bootstrap_failures import (
     BootstrapFailure,
     SDKContractFailure,
 )
-from runtime.bootstrap.launch_spec import LaunchSpec
+from runtime.domain.launch_spec import LaunchSpec
 
 
 @dataclass(frozen=True, slots=True)

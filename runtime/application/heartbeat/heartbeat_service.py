@@ -7,7 +7,7 @@ from typing import Callable
 from runtime.application.ports.manager_status_port import ManagerStatusPort
 from runtime.application.runtime_state.runtime_state import RuntimeState
 from runtime.domain.enums import WorkerPhase
-from runtime.infrastructure.http.srm.heartbeat import SRM_STATUS_SOURCE_HEARTBEAT
+from runtime.application.ports.srm_status_sources import SRM_STATUS_SOURCE_HEARTBEAT
 
 
 def _utc_now() -> datetime:

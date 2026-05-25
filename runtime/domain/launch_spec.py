@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping, cast
 
-from runtime.infrastructure.strategy_loader.digest_validation_env import skip_artifact_digest_validation
+from runtime.domain.artifact_digest_policy import skip_artifact_digest_validation
 from runtime.domain.enums import WorkerMode
 
 

@@ -10,8 +10,8 @@ from urllib.parse import unquote, urlparse
 from urllib.request import url2pathname
 
 from runtime.infrastructure.strategy_loader.digest_validation_env import skip_artifact_digest_validation
-from runtime.bootstrap.failures import ArtifactFetchFailure
-from runtime.bootstrap.launch_spec import LaunchSpec
+from runtime.domain.bootstrap_failures import ArtifactFetchFailure
+from runtime.domain.launch_spec import LaunchSpec
 from runtime.infrastructure.sdk.strategy_params_yaml import (
     discover_params_yaml_adjacent_to_module_file,
 )

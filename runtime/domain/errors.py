@@ -737,7 +737,6 @@ class RuntimeWorkerReasonCode(StrEnum):
     BOOTSTRAP_METADATA_INCONSISTENT = "BOOTSTRAP_METADATA_INCONSISTENT"
     MODE_DEPENDENCY_NOT_ALLOWED = "MODE_DEPENDENCY_NOT_ALLOWED"
     BACKTEST_REPLAY_DIRECT_ACCESS_BLOCKED = "BACKTEST_REPLAY_DIRECT_ACCESS_BLOCKED"
-    OMS_BYPASS_BLOCKED = "OMS_BYPASS_BLOCKED"
     BOUND_DEPENDENCY_UNAVAILABLE = "BOUND_DEPENDENCY_UNAVAILABLE"
     INITIALIZATION_TIMEOUT = "INITIALIZATION_TIMEOUT"
     CONTROLLED_SHUTDOWN_INITIATED = "CONTROLLED_SHUTDOWN_INITIATED"
@@ -795,7 +794,6 @@ _LEGACY_RUNTIME_REASON_MAP: dict[str, RuntimeWorkerReasonCode] = {
     "submit_backtest_order_intent_failed": RuntimeWorkerReasonCode.BOUND_DEPENDENCY_UNAVAILABLE,
     "submit_backtest_order_intent_not_configured": RuntimeWorkerReasonCode.BOUND_DEPENDENCY_UNAVAILABLE,
     "noop_replay_client": RuntimeWorkerReasonCode.BOUND_DEPENDENCY_UNAVAILABLE,
-    "no_oms_client_configured": RuntimeWorkerReasonCode.BOUND_DEPENDENCY_UNAVAILABLE,
     "heartbeat_lagging": RuntimeWorkerReasonCode.UNHEALTHY_EXECUTION_DETECTED,
     "strategy_bind_and_start_failed": RuntimeWorkerReasonCode.STRATEGY_STARTUP_FAILED,
     "strategy_callback_contract_violation": RuntimeWorkerReasonCode.SDK_COMPATIBILITY_FAILED,
@@ -843,7 +841,6 @@ def worker_error_code_for_reason(reason_code: str) -> str:
         RuntimeWorkerReasonCode.CONTROLLED_SHUTDOWN_INITIATED: WorkerErrorCode.RUNTIME_FAILED,
         RuntimeWorkerReasonCode.STOP_REQUESTED: WorkerErrorCode.ALREADY_STOPPED,
         RuntimeWorkerReasonCode.BACKTEST_REPLAY_DIRECT_ACCESS_BLOCKED: WorkerErrorCode.POLICY_VIOLATION,
-        RuntimeWorkerReasonCode.OMS_BYPASS_BLOCKED: WorkerErrorCode.POLICY_VIOLATION,
         RuntimeWorkerReasonCode.INITIALIZATION_TIMEOUT: WorkerErrorCode.BOOTSTRAP_FAILED,
         RuntimeWorkerReasonCode.STRATEGY_STARTUP_FAILED: WorkerErrorCode.BOOTSTRAP_FAILED,
     }

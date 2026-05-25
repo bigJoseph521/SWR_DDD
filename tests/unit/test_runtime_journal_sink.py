@@ -89,7 +89,7 @@ def test_runtime_journal_order_intent_payload_omits_strategy_context(
     )
     t_req = datetime(2025, 7, 1, 10, 0, 0, tzinfo=timezone.utc)
     sink.record_order_intent(
-        "oms",
+        "risk",
         {
             "strategy_context": {"alpha": 1},
             "instrument_id": "X",
@@ -126,7 +126,7 @@ def test_runtime_journal_sink_allocate_order_intent_id_uuid(
     assert oid1 != oid2
     t_occ = datetime(2025, 5, 1, 8, 0, 0, tzinfo=timezone.utc)
     sink.record_order_intent(
-        "oms",
+        "risk",
         {"order_intent_id": oid1, "requested_at": t_occ},
         {"accepted": True},
     )
@@ -155,7 +155,7 @@ def test_runtime_journal_order_intent_idempotency_key_column_and_legacy_payload_
     )
     t_occ = datetime(2025, 4, 1, 9, 0, 0, tzinfo=timezone.utc)
     sink.record_order_intent(
-        "oms",
+        "risk",
         {"client_intent_id": "legacy-idem-1", "requested_at": t_occ},
         {"accepted": True},
     )
@@ -189,7 +189,7 @@ def test_runtime_journal_sink_order_intent_payload_strips_unknown_job_alias(
         launch_job_id="j1",
     )
     sink.record_order_intent(
-        "oms",
+        "risk",
         {
             "job_id": "from-payload-should-not-win",
             "backtest_job_id": "ignored-alias",

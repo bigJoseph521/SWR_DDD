@@ -18,8 +18,6 @@ def _ensure_generated_proto_path() -> Path:
 _ensure_generated_proto_path()
 risk_worker_pb2 = importlib.import_module("risk_worker_pb2")
 risk_worker_pb2_grpc = importlib.import_module("risk_worker_pb2_grpc")
-replay_worker_pb2 = importlib.import_module("replay_worker_pb2")
-replay_worker_pb2_grpc = importlib.import_module("replay_worker_pb2_grpc")
 
 
 def _proto_ts_from_datetime(value: datetime | None) -> Any:
@@ -44,8 +42,6 @@ __all__ = [
     "_datetime_from_proto_ts",
     "_ensure_generated_proto_path",
     "_proto_ts_from_datetime",
-    "replay_worker_pb2",
-    "replay_worker_pb2_grpc",
     "risk_worker_pb2",
     "risk_worker_pb2_grpc",
 ]

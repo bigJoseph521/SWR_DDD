@@ -541,7 +541,7 @@ class RuntimeJournalSink:
         if isinstance(payload_safe, dict):
             payload_safe = _canonical_order_intent_journal_payload(payload_safe)
         # ``job_id`` column and persisted payload align with launch bundle ``job_id``
-        # (``setting.json`` → :class:`~runtime.bootstrap.launch_spec.LaunchSpec`) when set;
+        # (``setting.json`` → :class:`~runtime.domain.launch_spec.LaunchSpec`) when set;
         # otherwise fall back to the intent payload (e.g. unit tests without a launch binding).
         job_col: str | None = None
         if isinstance(payload_safe, dict):

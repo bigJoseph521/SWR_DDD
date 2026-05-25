@@ -7,7 +7,7 @@ from typing import Any, Callable, Literal
 
 from runtime.application.order_intents.submit_order_intent import SubmitOrderIntent
 from runtime.application.runtime_dependencies import RuntimeDependencies
-from runtime.bootstrap.launch_spec import LaunchSpec
+from runtime.domain.launch_spec import LaunchSpec
 from runtime.domain.errors import (
     OrderIntentWireMappingError,
     RuntimeWorkerReasonCode,
@@ -82,14 +82,13 @@ def build_sdk_order_intent_submitter(
     disable_order_intent_grpc: bool = False,
     latest_market_event_at: Callable[[], datetime | None] | None = None,
     allocate_order_intent_id: Callable[[], str] | None = None,
-    oms_correlation_id: str = "",
     platform_trace: PlatformTraceSpec | None = None,
 ) -> Callable[[Any], dict[str, Any]] | None:
     """
     Composition-root helper: SDK order intent → :class:`SubmitOrderIntent` → Risk Service.
     """
     _ = worker_identity
-    env_corr = order_intent_correlation_id or oms_correlation_id
+    env_corr = order_intent_correlation_id
     if platform_trace is not None:
         corr_fallback = platform_trace.effective_correlation_id(env_fallback=env_corr) or ""
     else:

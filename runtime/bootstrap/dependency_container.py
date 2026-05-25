@@ -7,35 +7,31 @@ from pathlib import Path
 from typing import Callable
 
 from sqlalchemy.engine import Connection
+
+from runtime.application.heartbeat.heartbeat_periodic import HeartbeatPeriodicJobs
 from runtime.application.lifecycle.lifecycle_service import LifecycleService
+from runtime.application.runtime_dependencies import RuntimeDependencies
 from runtime.application.worker_app import WorkerApp
-from runtime.infrastructure.strategy_loader.artifact_fetcher import ArtifactFetcher
-from runtime.infrastructure.strategy_loader.artifact_verifier import ArtifactVerifier
-from runtime.infrastructure.strategy_loader.entrypoint_loader import EntrypointLoader
-from runtime.bootstrap.failures import BootstrapFailure
-from runtime.bootstrap.launch_spec import LaunchSpec
-from runtime.bootstrap.persistence import (
-    BootstrapPersistenceCoordinator,
-)
+from runtime.domain.bootstrap_failures import BootstrapFailure
+from runtime.domain.launch_spec import LaunchSpec
+from runtime.bootstrap.lifecycle_wiring import build_lifecycle_ddd_wiring
+from runtime.bootstrap.persistence import BootstrapPersistenceCoordinator
+from runtime.bootstrap.runtime_dependencies_wiring import build_runtime_dependencies
 from runtime.bootstrap.sdk_contract_validator import (
     BootstrapPipeline,
     BootstrapPipelineSuccess,
     SdkContractValidator,
 )
-from runtime.bootstrap.strategy_instance_manager import (
-    StrategyInstanceManager,
-)
+from runtime.bootstrap.strategy_instance_manager import StrategyInstanceManager
 from runtime.bootstrap.validator import LaunchSpecValidator
+from runtime.domain.errors import RuntimeWorkerReasonCode, WorkerErrorCode
+from runtime.domain.policies.mode_policy import ModePolicy, get_mode_policy
+from runtime.domain.worker_identity import WorkerIdentity
 from runtime.infrastructure.config.logging import (
     build_runtime_log_context,
     configure_logging,
 )
 from runtime.infrastructure.config.settings import Settings
-from runtime.domain.errors import (
-    RuntimeWorkerReasonCode,
-    WorkerErrorCode,
-)
-from runtime.domain.worker_identity import WorkerIdentity
 from runtime.infrastructure.observability.logger import (
     RuntimeBoundLogger,
     bind_runtime_context,
@@ -49,10 +45,9 @@ from runtime.infrastructure.persistence.repositories import (
     SQLiteWorkerInstanceRepository,
 )
 from runtime.infrastructure.persistence.runtime_journal_sink import RuntimeJournalSink
-from runtime.application.runtime_dependencies import RuntimeDependencies
-from runtime.bootstrap.runtime_dependencies_wiring import build_runtime_dependencies
-from runtime.application.heartbeat.heartbeat_periodic import HeartbeatPeriodicJobs
-from runtime.domain.policies.mode_policy import ModePolicy, get_mode_policy
+from runtime.infrastructure.strategy_loader.artifact_fetcher import ArtifactFetcher
+from runtime.infrastructure.strategy_loader.artifact_verifier import ArtifactVerifier
+from runtime.infrastructure.strategy_loader.entrypoint_loader import EntrypointLoader
 
 
 class _NoopManagerClient:
@@ -182,7 +177,6 @@ def build_dependency_container(
     *,
     manager_client: object | None = None,
     risk_order_intent_client: object | None = None,
-    oms_client: object | None = None,
     strategy_instance_manager: StrategyInstanceManager | None = None,
     bootstrap_pipeline: BootstrapPipeline | None = None,
 ) -> DependencyContainer:
@@ -223,9 +217,7 @@ def build_dependency_container(
         return bind_runtime_context(base_logger, runtime_log_context)
 
     effective_manager_client = manager_client or _NoopManagerClient()
-    effective_risk_client = (
-        risk_order_intent_client or oms_client or _NoopRiskOrderIntentClient()
-    )
+    effective_risk_client = risk_order_intent_client or _NoopRiskOrderIntentClient()
 
     runtime_dependencies_cache: RuntimeDependencies | None = None
     lifecycle_service: LifecycleService | None = None
@@ -268,17 +260,11 @@ def build_dependency_container(
                 manager_client=effective_manager_client,
                 runtime_identity=worker_identity,
                 risk_order_intent_client=effective_risk_client,
-                on_first_data=(
-                    lifecycle_service.mark_first_data_received
-                    if lifecycle_service is not None
-                    else None
-                ),
                 on_lifecycle_event=(
                     state_journal.record_lifecycle_event
                     if state_journal is not None
                     else None
                 ),
-                replay_tick_logging_quiet=settings.replay_tick_logging_quiet,
                 heartbeat_log_enabled=settings.heartbeat_log_enabled,
                 on_risk_order_intent_result=(
                     _on_risk_order_intent_result if state_journal is not None else None
@@ -304,7 +290,11 @@ def build_dependency_container(
         closeables=tuple(closeables_list),
         state_journal=state_journal,
         worker_runtime_settings=settings,
+        ddd_wiring_builder=build_lifecycle_ddd_wiring,
     )
+    from runtime.bootstrap.lifecycle_host_wiring import build_lifecycle_host_ports
+
+    lifecycle_service.attach_host_ports(build_lifecycle_host_ports(lifecycle_service))
     lifecycle_ref[0] = lifecycle_service
     worker_app = WorkerApp(lifecycle_service)
 

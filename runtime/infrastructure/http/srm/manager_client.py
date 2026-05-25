@@ -46,12 +46,11 @@ class SrmHttpManagerClient:
 
 def build_manager_client(
     *,
-    grpc_target: str = "",
     srm_base_url: str = "",
     owner_resource_id: str = "",
     heartbeat_timeout_seconds: float = 30.0,
 ) -> Any:
-    _ = grpc_target  # ignored; SRM worker signals are HTTP-only
+    """Build the HTTP client for strategy-runtime-manager workload signals."""
     base_url = srm_base_url.strip()
     if not base_url:
         return _NoopManagerClient()

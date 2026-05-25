@@ -11,8 +11,8 @@ from runtime.infrastructure.strategy_loader.artifact_fetcher import (
 )
 from runtime.infrastructure.strategy_loader.artifact_verifier import ArtifactVerifier
 from runtime.infrastructure.strategy_loader.entrypoint_loader import EntrypointLoader
-from runtime.bootstrap.failures import BootstrapStage
-from runtime.bootstrap.launch_spec import LaunchSpec
+from runtime.domain.bootstrap_failures import BootstrapStage
+from runtime.domain.launch_spec import LaunchSpec
 from runtime.bootstrap.persistence import (
     BootstrapPersistenceCoordinator,
 )

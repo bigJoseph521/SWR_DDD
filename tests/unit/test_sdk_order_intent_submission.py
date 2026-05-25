@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
 from alphovex_sdk.enums.order import OrderSide, OrderType, TimeInForce
-from runtime.bootstrap.launch_spec import LaunchSpec
+from runtime.domain.launch_spec import LaunchSpec
 from runtime.infrastructure.strategy_loader.replay_runtime_support import ReplayOrderIntent
 from runtime.domain.enums import WorkerMode
 from runtime.domain.errors import RuntimeWorkerReasonCode
@@ -12,7 +12,6 @@ from runtime.domain.worker_identity import WorkerIdentity
 from runtime.infrastructure.clock.clock import SimulatedClock
 from runtime.infrastructure.http.srm.manager_gateway import ManagerGateway
 from runtime.infrastructure.grpc.risk_order_intent_gateway import RiskOrderIntentGateway
-from runtime.infrastructure.grpc.replay.replay_gateway import ReplayGateway
 from runtime.application.runtime_dependencies import RuntimeDependencies
 from runtime.domain.policies.mode_policy import get_mode_policy
 from runtime.bootstrap.sdk_order_intent_wiring import build_sdk_order_intent_submitter
@@ -93,8 +92,8 @@ def test_backtest_submitter_exists_when_risk_client_cannot_submit_if_callback_pr
     deps = RuntimeDependencies(
         clock=clock,
         manager=ManagerGateway(policy_bt, MagicMock(), _identity(spec)),
-        risk_order_intent=RiskOrderIntentGateway(policy_bt, _RiskGrpcClientNoSubmit()),
-        replay=ReplayGateway(policy_bt, simulated_clock=clock))
+        risk_order_intent=RiskOrderIntentGateway(policy_bt, _RiskGrpcClientNoSubmit())
+    )
 
     seen: list[tuple[str, dict, dict]] = []
 
@@ -142,8 +141,8 @@ def test_backtest_created_at_prefers_latest_market_event_snapshot() -> None:
     deps = RuntimeDependencies(
         clock=clock,
         manager=ManagerGateway(policy_bt, MagicMock(), _identity(spec)),
-        risk_order_intent=RiskOrderIntentGateway(policy_bt, _RiskGrpcClientNoSubmit()),
-        replay=ReplayGateway(policy_bt, simulated_clock=clock))
+        risk_order_intent=RiskOrderIntentGateway(policy_bt, _RiskGrpcClientNoSubmit())
+    )
     seen: list[tuple[str, dict, dict]] = []
 
     def _cb(source: str, payload: dict, result: dict) -> None:
@@ -183,8 +182,8 @@ def test_backtest_submitter_calls_risk_grpc_when_client_supports_submit() -> Non
     deps = RuntimeDependencies(
         clock=clock,
         manager=ManagerGateway(policy_bt, MagicMock(), _identity(spec)),
-        risk_order_intent=RiskOrderIntentGateway(policy_bt, risk_client),
-        replay=ReplayGateway(policy_bt, simulated_clock=clock))
+        risk_order_intent=RiskOrderIntentGateway(policy_bt, risk_client)
+    )
 
     submit = build_sdk_order_intent_submitter(
         dependencies=deps,
@@ -218,8 +217,8 @@ def test_backtest_submitter_invokes_callback_when_simulated_clock_not_yet_set() 
     deps = RuntimeDependencies(
         clock=clock,
         manager=ManagerGateway(policy_bt, MagicMock(), _identity(spec)),
-        risk_order_intent=RiskOrderIntentGateway(policy_bt, risk_client),
-        replay=ReplayGateway(policy_bt, simulated_clock=clock))
+        risk_order_intent=RiskOrderIntentGateway(policy_bt, risk_client)
+    )
     seen: list[tuple[str, dict, dict]] = []
 
     def _cb(source: str, payload: dict, result: dict) -> None:
@@ -260,8 +259,8 @@ def test_disable_order_intent_grpc_skips_network_but_invokes_callback_for_sqlite
     deps = RuntimeDependencies(
         clock=clock,
         manager=ManagerGateway(policy_bt, MagicMock(), _identity(spec)),
-        risk_order_intent=RiskOrderIntentGateway(policy_bt, risk_client),
-        replay=ReplayGateway(policy_bt, simulated_clock=clock))
+        risk_order_intent=RiskOrderIntentGateway(policy_bt, risk_client)
+    )
 
     seen: list[tuple[str, dict, dict]] = []
 

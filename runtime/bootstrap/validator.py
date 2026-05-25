@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import Mapping
 
-from runtime.bootstrap.launch_spec import (
+from runtime.domain.launch_spec import (
     LaunchSpec,
     LaunchSpecValidationError,
 )

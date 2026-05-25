@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from runtime.bootstrap.launch_spec import LaunchSpecValidationError
+from runtime.domain.launch_spec import LaunchSpecValidationError
 from runtime.infrastructure.config.settings import load_settings_from_bundle_dict
 
 
@@ -101,26 +101,6 @@ def test_load_settings_blank_optional_field_is_validated_by_launch_spec() -> Non
     with pytest.raises(LaunchSpecValidationError) as exc_info:
         _load(data)
     assert exc_info.value.field_errors["trader_id"] == "must_not_be_empty"
-
-
-def test_load_settings_replay_ingress_trace_from_bundle() -> None:
-    data = dict(_base_bundle())
-    data["replay_ingress_trace_payload"] = True
-    s = load_settings_from_bundle_dict(
-        data, base_dir=Path.cwd(), print_launch_banner=False
-    )
-    assert s.replay_ingress_trace_payload is True
-
-
-def test_load_settings_replay_ingress_trace_from_env(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("SWR_REPLAY_DATA_TRACE", "1")
-    data = dict(_base_bundle())
-    s = load_settings_from_bundle_dict(
-        data, base_dir=Path.cwd(), print_launch_banner=False
-    )
-    assert s.replay_ingress_trace_payload is True
 
 
 def test_load_settings_market_data_redis_from_bundle(

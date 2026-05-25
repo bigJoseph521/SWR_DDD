@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import json
 
-from runtime.infrastructure.redis.portfolio_redis_feed import (
-    parse_portfolio_balance_message,
-    portfolio_update_channel,
+from runtime.application.event_handling.portfolio_update_contract import (
+    portfolio_update_channel_name,
     portfolio_update_partition,
 )
 from runtime.infrastructure.redis.market_data_partition import market_data_partition
+from runtime.infrastructure.redis.redis_portfolio_update_adapter import (
+    parse_portfolio_balance_message,
+)
 
 
 def test_portfolio_update_partition_matches_job_id_crc32() -> None:
@@ -23,7 +25,7 @@ def test_portfolio_update_partition_trims_job_id() -> None:
 
 
 def test_portfolio_update_channel() -> None:
-    assert portfolio_update_channel("portfolio:update", partition=42) == (
+    assert portfolio_update_channel_name("portfolio:update", partition=42) == (
         "portfolio:update:42"
     )
 

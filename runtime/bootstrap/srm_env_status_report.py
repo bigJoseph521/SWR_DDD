@@ -6,8 +6,8 @@ import json
 from datetime import datetime, timezone
 from typing import Any, Final
 
-from runtime.bootstrap.failures import BootstrapFailure, BootstrapStage
-from runtime.bootstrap.launch_spec import LaunchSpecValidationError
+from runtime.domain.bootstrap_failures import BootstrapFailure, BootstrapStage
+from runtime.domain.launch_spec import LaunchSpecValidationError
 from runtime.bootstrap.minimal_env_validation import (
     HEALTH_STATUS_HEALTHY,
     HEALTH_STATUS_UNHEALTHY,

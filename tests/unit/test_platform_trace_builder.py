@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from runtime.bootstrap.launch_spec import LaunchSpec
-from runtime.bootstrap.platform_trace_builder import build_platform_trace_spec_from_launch
+from runtime.domain.launch_spec import LaunchSpec
+from runtime.domain.platform_trace_factory import build_platform_trace_spec_from_launch
 
 
 def test_build_platform_trace_spec_from_launch_maps_launch_fields() -> None:

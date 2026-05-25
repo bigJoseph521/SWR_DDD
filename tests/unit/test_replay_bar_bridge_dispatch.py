@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from alphovex_sdk.strategy.base import Strategy as SdkStrategy
 from runtime.application.strategy_execution.event_mapper import MarketBarEvent
-from runtime.bootstrap.launch_spec import LaunchSpec
+from runtime.domain.launch_spec import LaunchSpec
 from runtime.infrastructure.sdk.replay_sdk_bridge import build_replay_sdk_bridge
 from runtime.application.strategy_execution.strategy_adapter import StrategyAdapter
 from runtime.domain.enums import WorkerMode

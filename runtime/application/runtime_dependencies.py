@@ -13,9 +13,3 @@ class RuntimeDependencies:
     clock: ClockPort
     manager: Any
     risk_order_intent: Any | None
-    replay: Any | None
-
-    @property
-    def oms(self) -> Any | None:
-        """Deprecated alias for :attr:`risk_order_intent`."""
-        return self.risk_order_intent

@@ -7,7 +7,7 @@ from typing import Any, Mapping
 
 from runtime.infrastructure.strategy_loader.artifact_fetcher import ArtifactFetchResult
 from runtime.infrastructure.strategy_loader.digest_validation_env import skip_artifact_digest_validation
-from runtime.bootstrap.failures import ArtifactVerificationFailure
+from runtime.domain.bootstrap_failures import ArtifactVerificationFailure
 
 
 @dataclass(frozen=True, slots=True)

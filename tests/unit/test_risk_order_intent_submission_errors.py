@@ -7,10 +7,8 @@ from runtime.domain.errors import (
     RISK_SERVICE_TIMEOUT,
     RISK_SERVICE_UNAVAILABLE,
 )
-from runtime.infrastructure.grpc.risk_order_intent_client import (
-    DependencyClientError,
-    _normalize_grpc_error,
-)
+from runtime.infrastructure.grpc.dependency_client_error import DependencyClientError
+from runtime.infrastructure.grpc.risk_order_intent_client import _normalize_grpc_error
 from runtime.infrastructure.grpc.risk_order_intent_submission_errors import (
     dependency_client_error_to_submission_error,
 )

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Mapping
 
-from runtime.bootstrap.launch_spec import LaunchSpec
+from runtime.domain.launch_spec import LaunchSpec
 from runtime.domain.model.platform_trace_spec import PlatformTraceSpec
 
 
@@ -19,7 +19,7 @@ def build_platform_trace_spec_from_launch(
     launch_spec: LaunchSpec,
     launch_payload: Mapping[str, object],
 ) -> PlatformTraceSpec:
-    """Map bootstrap launch context into :class:`PlatformTraceSpec` (composition root)."""
+    """Map launch metadata into :class:`PlatformTraceSpec` (pure domain; no bootstrap import)."""
     strategy_id = _optional_payload_str(launch_payload, "strategy_id")
     request_id = _optional_payload_str(launch_payload, "request_id")
     if request_id is None:

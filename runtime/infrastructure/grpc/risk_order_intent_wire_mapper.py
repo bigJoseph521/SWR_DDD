@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, Callable
 
-from runtime.bootstrap.launch_spec import LaunchSpec
+from runtime.domain.launch_spec import LaunchSpec
 from runtime.domain.enums import OrderIntentSide, OrderIntentType
 from runtime.domain.errors import (
     ORDER_INTENT_WIRE_MAPPING_MISSING_CORRELATION_ID,

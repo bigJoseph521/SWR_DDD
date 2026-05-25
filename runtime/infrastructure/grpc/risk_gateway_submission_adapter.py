@@ -5,7 +5,7 @@ from typing import Any, Mapping
 
 from runtime.domain.errors import OrderIntentWireMappingError
 from runtime.domain.model.strategy_order_intent import StrategyOrderIntent
-from runtime.infrastructure.grpc.risk_order_intent_client import DependencyClientError
+from runtime.infrastructure.grpc.dependency_client_error import DependencyClientError
 from runtime.infrastructure.grpc.risk_order_intent_gateway import RiskOrderIntentGateway
 from runtime.infrastructure.grpc.risk_order_intent_submission_errors import (
     dependency_client_error_to_submission_error,

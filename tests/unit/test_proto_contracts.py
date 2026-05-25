@@ -1,4 +1,3 @@
-import base64
 import importlib
 import sys
 from datetime import datetime, timezone

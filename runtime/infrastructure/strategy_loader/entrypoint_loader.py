@@ -9,8 +9,8 @@ from pathlib import Path
 from typing import Any, Iterator, Mapping
 
 from runtime.infrastructure.strategy_loader.artifact_fetcher import ArtifactFetchResult
-from runtime.bootstrap.failures import EntrypointLoadFailure
-from runtime.bootstrap.launch_spec import LaunchSpec
+from runtime.domain.bootstrap_failures import EntrypointLoadFailure
+from runtime.domain.launch_spec import LaunchSpec
 
 
 @dataclass(frozen=True, slots=True)

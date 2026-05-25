@@ -277,7 +277,7 @@ def test_lifecycle_initiate_stop_sets_shutdown_in_progress(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from runtime.application.lifecycle.lifecycle_service import LifecycleService
-    from runtime.bootstrap.launch_spec import LaunchSpec
+    from runtime.domain.launch_spec import LaunchSpec
     from runtime.bootstrap.validator import LaunchSpecValidator
     from runtime.domain.worker_identity import WorkerIdentity
 
@@ -321,17 +321,17 @@ def test_lifecycle_initiate_stop_sets_shutdown_in_progress(
     )
     captured: dict[str, object] = {}
 
-    def _fake_initiate(**kwargs: object) -> tuple[dict[str, object], None, str, str]:
+    def _fake_initiate(**kwargs: object) -> dict[str, object]:
         captured.update(kwargs)
-        return (
-            {"runtime_status": "STOPPING"},
-            None,
-            KUBERNETES_TERMINATION_REASON,
-            "Worker received Kubernetes SIGTERM.",
-        )
+        return {
+            "body": {"runtime_status": "STOPPING"},
+            "canonical": KUBERNETES_TERMINATION_REASON,
+            "resolved_message": "Worker received Kubernetes SIGTERM.",
+        }
 
     monkeypatch.setattr(
-        "runtime.application.lifecycle.lifecycle_service.initiate_stop_status_update",
+        lifecycle._host.srm,
+        "initiate_stop_status_update",
         _fake_initiate,
     )
 

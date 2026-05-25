@@ -7,11 +7,13 @@ import signal
 import threading
 from typing import Protocol
 
-from runtime.bootstrap.srm_env_status_report import KUBERNETES_TERMINATION_REASON
-from runtime.interface.http.stop_control_server import (
+from runtime.application.lifecycle.stop_errors import (
     StopAlreadyInProgress,
     WorkerAlreadyStopped,
 )
+from runtime.domain.errors import RuntimeWorkerReasonCode
+
+KUBERNETES_TERMINATION_REASON = RuntimeWorkerReasonCode.KUBERNETES_TERMINATION.value
 
 _LOG = logging.getLogger(__name__)
 

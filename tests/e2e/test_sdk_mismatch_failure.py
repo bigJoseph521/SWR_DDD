@@ -4,10 +4,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from runtime.application.dependency_container import (
-    build_dependency_container,
-)
-from runtime.bootstrap.failures import SDKContractFailure
+from runtime.bootstrap.dependency_container import build_dependency_container
+from runtime.domain.bootstrap_failures import SDKContractFailure
 from runtime.bootstrap.minimal_env_validation import SWR_SDK_COMPATIBILITY_FAILED
 from runtime.infrastructure.config.settings import load_settings_from_bundle_dict
 from runtime.domain.enums import WorkerPhase
@@ -41,8 +39,9 @@ def test_sdk_mismatch_failure_reports_srm_status_update(
     )
     container = build_dependency_container(settings, manager_client=manager)
 
-    with patch(
-        "runtime.application.lifecycle.lifecycle_service.report_bootstrap_failure_to_srm"
+    with patch.object(
+        container.lifecycle_service._host.srm,
+        "report_bootstrap_failure",
     ) as report_mock:
         with pytest.raises(SDKContractFailure) as exc_info:
             container.worker_app.start()

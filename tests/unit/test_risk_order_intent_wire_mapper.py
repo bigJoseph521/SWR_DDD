@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 from alphovex_sdk.enums.order import OrderSide, OrderType, TimeInForce
-from runtime.bootstrap.launch_spec import LaunchSpec
+from runtime.domain.launch_spec import LaunchSpec
 from runtime.domain.enums import OrderIntentSide, OrderIntentType, WorkerMode
 from runtime.domain.errors import (
     ORDER_INTENT_WIRE_MAPPING_MISSING_CORRELATION_ID,

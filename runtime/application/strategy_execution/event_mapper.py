@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
-from runtime.infrastructure.clock.epoch_time import utc_datetime_to_epoch_millis
+from runtime.application.time_conversion import utc_datetime_to_epoch_millis
 
 
 class EventMappingError(ValueError):

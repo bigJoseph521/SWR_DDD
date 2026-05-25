@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import inspect
-from typing import Any, Callable, Mapping, Protocol
+from typing import Any, Callable, Mapping
 
 from alphovex_sdk.strategy.base import Strategy as SdkStrategy
 from runtime.application.strategy_execution.event_mapper import (
@@ -11,10 +11,8 @@ from runtime.application.strategy_execution.event_mapper import (
     MarketTickEvent,
 )
 from runtime.application.strategy_execution.event_mapper import TimerEvent as WireTimerEvent
-from runtime.infrastructure.sdk.replay_sdk_bridge import (
-    ReplaySdkBridge,
-    replay_sdk_hook_overridden,
-)
+from runtime.application.ports.backtest_sdk_bridge_port import BacktestSdkBridgePort
+from runtime.application.strategy_execution.sdk_hook_utils import replay_sdk_hook_overridden
 from runtime.application.strategy_execution.strategy_error_boundary import (
     StrategyCallResult,
     StrategyErrorBoundary,
@@ -39,14 +37,6 @@ def _legacy_positional_params(
     ]
 
 
-class StrategyHookAdapter(Protocol):
-    def initialize(self, *args: object, **kwargs: object) -> object: ...
-
-    def on_event(self, event: object) -> object: ...
-
-    def stop(self) -> object: ...
-
-
 class StrategyAdapter:
     def __init__(
         self,
@@ -54,19 +44,14 @@ class StrategyAdapter:
         *,
         mapper: EventMapper | None = None,
         boundary: StrategyErrorBoundary | None = None,
-        replay_sdk_bridge: ReplaySdkBridge | None = None,
-        replay_bar_bridge: ReplaySdkBridge | None = None,
+        backtest_sdk_bridge: BacktestSdkBridgePort | None = None,
+        replay_sdk_bridge: BacktestSdkBridgePort | None = None,
     ) -> None:
         self._strategy = strategy
         self._mapper = mapper or EventMapper()
         self._boundary = boundary or StrategyErrorBoundary()
-        self._replay_sdk_bridge = replay_sdk_bridge or replay_bar_bridge
+        self._backtest_sdk_bridge = backtest_sdk_bridge or replay_sdk_bridge
         self._lifecycle_started = False
-
-    @property
-    def strategy_object(self) -> object:
-        """The bound user strategy instance (for bundle-adjacent config such as ``params.yaml``)."""
-        return self._strategy
 
     def bind_and_start(self) -> StrategyCallResult[Any]:
         """
@@ -88,7 +73,7 @@ class StrategyAdapter:
             )
 
         strategy = self._strategy
-        bridge = self._replay_sdk_bridge
+        bridge = self._backtest_sdk_bridge
 
         if isinstance(strategy, SdkStrategy):
             if bridge is not None:
@@ -136,8 +121,8 @@ class StrategyAdapter:
         if len(params) >= 1:
             # TODO(STP-1012): remove legacy initialize(context) shim once artifacts use SDK lifecycle only.
             ctx = (
-                self._replay_sdk_bridge.strategy_context
-                if self._replay_sdk_bridge is not None
+                self._backtest_sdk_bridge.strategy_context
+                if self._backtest_sdk_bridge is not None
                 else None
             )
             return self._boundary.call("strategy.initialize", hook, ctx)
@@ -169,7 +154,7 @@ class StrategyAdapter:
             )
 
         mapped = map_result.value
-        bridge = self._replay_sdk_bridge
+        bridge = self._backtest_sdk_bridge
 
         if bridge is not None and isinstance(mapped, MarketBarEvent):
             on_bar = getattr(self._strategy, "on_bar", None)

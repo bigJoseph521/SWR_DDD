@@ -3,8 +3,8 @@ from __future__ import annotations
 from datetime import datetime
 
 from sqlalchemy.exc import IntegrityError
-from runtime.bootstrap.failures import BootstrapFailure
-from runtime.bootstrap.launch_spec import LaunchSpec
+from runtime.domain.bootstrap_failures import BootstrapFailure
+from runtime.domain.launch_spec import LaunchSpec
 from runtime.bootstrap.sdk_contract_validator import (
     BootstrapPipelineSuccess,
 )

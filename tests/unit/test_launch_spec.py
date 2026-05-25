@@ -6,7 +6,7 @@ import pytest
 from runtime.infrastructure.strategy_loader.digest_validation_env import (
     SKIP_ARTIFACT_DIGEST_VALIDATION_ENV,
 )
-from runtime.bootstrap.launch_spec import (
+from runtime.domain.launch_spec import (
     LaunchSpec,
     LaunchSpecValidationError,
 )

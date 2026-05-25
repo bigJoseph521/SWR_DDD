@@ -3,9 +3,7 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
-from runtime.application.dependency_container import (
-    build_dependency_container,
-)
+from runtime.bootstrap.dependency_container import build_dependency_container
 from runtime.infrastructure.config.settings import load_settings_from_bundle_dict
 from runtime.domain.enums import WorkerPhase
 

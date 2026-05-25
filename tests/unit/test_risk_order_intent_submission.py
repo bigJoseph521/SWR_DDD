@@ -10,7 +10,6 @@ from runtime.infrastructure.grpc.risk_order_intent_client import (
     build_risk_order_intent_grpc_client,
 )
 from runtime.infrastructure.grpc.risk_order_intent_gateway import RiskOrderIntentGateway
-import runtime.main as runtime_main_module
 from runtime.bootstrap.runtime_dependencies_wiring import build_runtime_dependencies
 from runtime.domain.policies.mode_policy import Capability, get_mode_policy
 from runtime.domain.enums import WorkerMode
@@ -107,18 +106,26 @@ def test_application_bootstrap_paths_do_not_import_oms_gateway() -> None:
 
 
 def test_main_module_does_not_reference_build_oms_grpc_client() -> None:
+    from runtime.bootstrap import runtime_entrypoint
     from runtime.interface import cli as cli_pkg
 
-    source = ast.parse(
+    cli_source = ast.parse(
         Path(cli_pkg.main.__file__).read_text(encoding="utf-8")  # type: ignore[attr-defined]
     )
-    names = {
-        node.id
-        for node in ast.walk(source)
-        if isinstance(node, ast.Name)
+    cli_names = {
+        node.id for node in ast.walk(cli_source) if isinstance(node, ast.Name)
     }
-    assert "build_oms_grpc_client" not in names
-    assert "build_runtime_grpc_clients" in names
+    assert "build_oms_grpc_client" not in cli_names
+    assert "run_runtime_from_cli" in cli_names
+
+    entry_source = ast.parse(
+        Path(runtime_entrypoint.__file__).read_text(encoding="utf-8")
+    )
+    entry_names = {
+        node.id for node in ast.walk(entry_source) if isinstance(node, ast.Name)
+    }
+    assert "build_oms_grpc_client" not in entry_names
+    assert "build_runtime_outbound_clients" in entry_names
 
 
 def test_mode_policy_exposes_risk_order_intent_egress_capability() -> None:
@@ -130,7 +137,7 @@ def test_risk_gateway_submission_adapter_missing_correlation_fails_closed() -> N
     from decimal import Decimal
 
     from runtime.application.order_intents.submit_order_intent import SubmitOrderIntent
-    from runtime.bootstrap.launch_spec import LaunchSpec
+    from runtime.domain.launch_spec import LaunchSpec
     from runtime.domain.enums import OrderIntentSide, OrderIntentType
     from runtime.domain.errors import ORDER_INTENT_WIRE_MAPPING_MISSING_CORRELATION_ID
     from runtime.domain.model.strategy_order_intent import StrategyOrderIntent
@@ -186,14 +193,14 @@ def test_risk_gateway_submission_adapter_maps_dependency_unavailable() -> None:
     from decimal import Decimal
 
     from runtime.application.order_intents.submit_order_intent import SubmitOrderIntent
-    from runtime.bootstrap.launch_spec import LaunchSpec
+    from runtime.domain.launch_spec import LaunchSpec
     from runtime.domain.enums import OrderIntentSide, OrderIntentType
     from runtime.domain.errors import RISK_SERVICE_UNAVAILABLE
     from runtime.domain.model.strategy_order_intent import StrategyOrderIntent
     from runtime.infrastructure.grpc.risk_gateway_submission_adapter import (
         RiskGatewaySubmissionAdapter,
     )
-    from runtime.infrastructure.grpc.risk_order_intent_client import DependencyClientError
+    from runtime.infrastructure.grpc.dependency_client_error import DependencyClientError
     from runtime.infrastructure.grpc.risk_order_intent_wire_mapper import (
         OrderSubmissionContext,
     )

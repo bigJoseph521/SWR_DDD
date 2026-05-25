@@ -10,7 +10,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
-from runtime.bootstrap.launch_spec import LaunchSpecValidationError
+from runtime.domain.launch_spec import LaunchSpecValidationError
 from runtime.infrastructure.config.logging import configure_logging
 from runtime.infrastructure.observability.domain_events import (
     StrategyWorkerDomainEvent,

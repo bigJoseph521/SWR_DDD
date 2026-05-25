@@ -176,8 +176,6 @@ class ServiceTarget(StrEnum):
     STRATEGY_RUNTIME_MANAGER = "strategy-runtime-manager"
     STRATEGY_REGISTRY_SERVICE = "strategy-registry-service"
     MARKET_DATA_SERVICE = "market-data-service"
-    ORDER_MANAGEMENT_SERVICE = "order-management-service"
-    BACKTEST_SERVICE = "backtest-service"
     RISK_SERVICE = "risk-service"
 
 
@@ -185,7 +183,6 @@ class DependencyAccessPattern(StrEnum):
     CONTROL_PLANE = "CONTROL_PLANE"
     INTERNAL_REPORTING = "INTERNAL_REPORTING"
     MARKET_CURRENT_STATE = "MARKET_CURRENT_STATE"
-    PAPER_LIVE_ORDER_INTENT = "PAPER_LIVE_ORDER_INTENT"
     #: SDK / strategy order intents (``risk_worker.proto``) to risk-service hot path (all modes).
     RISK_ORDER_INTENT_EGRESS = "RISK_ORDER_INTENT_EGRESS"
     BACKTEST_REPLAY_CONTEXT = "BACKTEST_REPLAY_CONTEXT"
@@ -198,7 +195,6 @@ MODE_ALLOWED_SERVICE_TARGETS: Final[dict[WorkerMode, frozenset[ServiceTarget]]] 
         {
             ServiceTarget.STRATEGY_RUNTIME_MANAGER,
             ServiceTarget.MARKET_DATA_SERVICE,
-            ServiceTarget.ORDER_MANAGEMENT_SERVICE,
             ServiceTarget.RISK_SERVICE,
         }
     ),
@@ -206,14 +202,12 @@ MODE_ALLOWED_SERVICE_TARGETS: Final[dict[WorkerMode, frozenset[ServiceTarget]]] 
         {
             ServiceTarget.STRATEGY_RUNTIME_MANAGER,
             ServiceTarget.MARKET_DATA_SERVICE,
-            ServiceTarget.ORDER_MANAGEMENT_SERVICE,
             ServiceTarget.RISK_SERVICE,
         }
     ),
     WorkerMode.BACKTEST: frozenset(
         {
             ServiceTarget.STRATEGY_RUNTIME_MANAGER,
-            ServiceTarget.BACKTEST_SERVICE,
             ServiceTarget.RISK_SERVICE,
         }
     ),

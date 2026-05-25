@@ -7,10 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
-from runtime.bootstrap.launch_spec import (
-    LaunchSpec,
-    LaunchSpecValidationError,
-)
+from runtime.domain.launch_spec import LaunchSpec, LaunchSpecValidationError
 from runtime.infrastructure.strategy_loader.strategy_bundle_loader import (
     _scalar,
     default_bundle_setting_path,
@@ -25,8 +22,6 @@ from runtime.infrastructure.strategy_loader.strategy_bundle_loader import (
 # ---------------------------------------------------------------------------
 SWR_STRATEGY_RUNTIME_MANAGER_BASE_URL = ""
 SWR_RUNTIME_MANAGER_HEARTBEAT_TIMEOUT_SECONDS = 30
-SWR_OMS_GRPC_TARGET = "0.0.0.1:50053"
-SWR_OMS_GRPC_TIMEOUT_SECONDS = 3
 SWR_RISK_GRPC_TIMEOUT_SECONDS = 3
 SWR_MARKET_DATA_STREAMS = "bars"
 SWR_MARKET_DATA_STREAM_TRADES = "md:stream:trades"
@@ -42,8 +37,6 @@ _DOTENV_BLOCKLIST: frozenset[str] = frozenset(
     {
         "SWR_STRATEGY_RUNTIME_MANAGER_BASE_URL",
         "SWR_RUNTIME_MANAGER_HEARTBEAT_TIMEOUT_SECONDS",
-        "SWR_OMS_GRPC_TARGET",
-        "SWR_OMS_GRPC_TIMEOUT_SECONDS",
         "SWR_RISK_GRPC_TIMEOUT_SECONDS",
         "SWR_MARKET_DATA_STREAMS",
         "SWR_MARKET_DATA_STREAM_TRADES",
@@ -82,8 +75,6 @@ def _apply_module_connectivity_settings(tuning: dict[str, Any]) -> dict[str, Any
             "runtime_manager_heartbeat_timeout_seconds": float(
                 SWR_RUNTIME_MANAGER_HEARTBEAT_TIMEOUT_SECONDS
             ),
-            "oms_grpc_target": SWR_OMS_GRPC_TARGET,
-            "oms_grpc_timeout_seconds": float(SWR_OMS_GRPC_TIMEOUT_SECONDS),
             "risk_grpc_timeout_seconds": float(SWR_RISK_GRPC_TIMEOUT_SECONDS),
             "market_data_feeds": _market_data_feeds_from_streams_constant(),
             "market_data_redis_stream_trades": SWR_MARKET_DATA_STREAM_TRADES,
@@ -160,24 +151,13 @@ class Settings:
     heartbeat_interval_seconds: float
     deployment_id: str
     worker_control_http_bind: str
-    replay_ingress_grpc_bind: str
-    replay_ingress_grpc_fallback_ports: str
-    replay_ingress_grpc_no_fallback: bool
-    #: Deprecated legacy bundle/env key; not used for order intent egress (see ``risk_grpc_target``).
-    oms_grpc_target: str
-    oms_grpc_timeout_seconds: float
     #: ``host:port`` for Risk Service order-intent gRPC (``risk_worker.proto`` / ``OrderIntentService``).
     #: SDK order intents are sent **only** here (all runtime modes). Env: ``SWR_RISK_GRPC_TARGET``.
     risk_grpc_target: str
     risk_grpc_timeout_seconds: float
     #: Bar cadence: ``parameters.bar_timeframe`` / root ``bar_timeframe`` / ``replay_bar_timeframe``.
     replay_bar_timeframe: str
-    replay_ingress_trace_payload: bool
-    replay_tick_logging_quiet: bool
     order_intent_correlation_id: str
-    #: Deprecated alias populated from bundle ``oms_correlation_id`` when present.
-    oms_correlation_id: str
-    replay_session_id: str
     disable_order_intent_grpc: bool
     backtest_symbol: str | None = None
     #: Redis URL for ``md:stream:*`` consumption (PAPER/LIVE). Empty disables the feed.
@@ -315,10 +295,6 @@ def _settings_from_prepared(
         Path(txt_s).resolve() if txt_s else work_root / "state_journal.txt"
     )
 
-    replay_trace = bool(tuning["replay_ingress_trace_payload"]) or _env_flag_enabled(
-        "SWR_REPLAY_DATA_TRACE"
-    )
-
     backtest_symbol: str | None = None
     params_raw = data.get("parameters")
     if isinstance(params_raw, dict):
@@ -350,25 +326,10 @@ def _settings_from_prepared(
         heartbeat_interval_seconds=float(tuning["heartbeat_interval_seconds"]),
         deployment_id=_resolve_deployment_id(dict(payload), data),
         worker_control_http_bind=str(tuning["worker_control_http_bind"]),
-        replay_ingress_grpc_bind=str(tuning["replay_ingress_grpc_bind"]),
-        replay_ingress_grpc_fallback_ports=str(
-            tuning["replay_ingress_grpc_fallback_ports"]
-        ),
-        replay_ingress_grpc_no_fallback=bool(tuning["replay_ingress_grpc_no_fallback"]),
-        oms_grpc_target=str(tuning["oms_grpc_target"]),
-        oms_grpc_timeout_seconds=float(tuning["oms_grpc_timeout_seconds"]),
         risk_grpc_target=str(tuning["risk_grpc_target"]),
         risk_grpc_timeout_seconds=float(tuning["risk_grpc_timeout_seconds"]),
         replay_bar_timeframe=str(tuning["replay_bar_timeframe"]),
-        replay_ingress_trace_payload=replay_trace,
-        replay_tick_logging_quiet=bool(tuning["replay_tick_logging_quiet"]),
-        order_intent_correlation_id=str(
-            tuning.get("order_intent_correlation_id")
-            or tuning.get("oms_correlation_id")
-            or ""
-        ),
-        oms_correlation_id=str(tuning.get("oms_correlation_id", "")),
-        replay_session_id=str(tuning["replay_session_id"]),
+        order_intent_correlation_id=str(tuning.get("order_intent_correlation_id", "")),
         disable_order_intent_grpc=bool(tuning["disable_order_intent_grpc"]),
         backtest_symbol=backtest_symbol,
         market_data_redis_url=str(tuning["market_data_redis_url"]),

@@ -3,7 +3,7 @@ from __future__ import annotations
 from unittest.mock import patch
 
 import pytest
-from runtime.bootstrap.failures import (
+from runtime.domain.bootstrap_failures import (
     ArtifactFetchFailure,
     ArtifactVerificationFailure,
     BootstrapFailure,

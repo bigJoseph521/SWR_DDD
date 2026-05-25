@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
-from runtime.bootstrap.bar_timeframe import redis_md_stream_am_supports_timeframe
+from runtime.domain.bar_timeframe import redis_md_stream_am_supports_timeframe
 from runtime.infrastructure.clock.epoch_time import utc_datetime_to_epoch_millis
 from runtime.infrastructure.redis.market_data_partition import market_data_partition
 

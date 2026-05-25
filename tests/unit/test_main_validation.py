@@ -6,17 +6,38 @@ import types
 from typing import Any
 
 import pytest
-from runtime.bootstrap.launch_spec import LaunchSpecValidationError
+from runtime.domain.launch_spec import LaunchSpecValidationError
 from runtime.domain.errors import (
     RuntimeWorkerReasonCode,
     WorkerErrorCode,
 )
 
 
+_STUBBED_MODULE_KEYS = (
+    "runtime.bootstrap.dependency_container",
+    "runtime.infrastructure.http.srm.manager_client",
+    "runtime.infrastructure.grpc.risk_order_intent_client",
+    "runtime.interface.cli.main",
+)
+
+
+def _clear_import_stubs() -> None:
+    for key in _STUBBED_MODULE_KEYS:
+        mod = sys.modules.get(key)
+        if isinstance(mod, types.ModuleType) and getattr(mod, "__file__", None) is None:
+            sys.modules.pop(key, None)
+
+
+@pytest.fixture(autouse=True)
+def _restore_modules_after_main_validation_stubs() -> None:
+    yield
+    _clear_import_stubs()
+
+
 def _import_main_with_stubs() -> Any:
-    dep_mod = types.ModuleType("runtime.application.dependency_container")
+    dep_mod = types.ModuleType("runtime.bootstrap.dependency_container")
     setattr(dep_mod, "build_dependency_container", lambda *args, **kwargs: None)
-    sys.modules["runtime.application.dependency_container"] = dep_mod
+    sys.modules["runtime.bootstrap.dependency_container"] = dep_mod
 
     class _NoopManagerClient:  # pragma: no cover - import stub only
         def emit_signal(self, envelope: object) -> dict[str, object]:
@@ -45,30 +66,12 @@ def _import_main_with_stubs() -> Any:
     )
     sys.modules["runtime.infrastructure.grpc.risk_order_intent_client"] = risk_mod
 
-    replay_service_mod = types.ModuleType("runtime.interface.grpc.replay_ingress_server")
-
-    class _ReplayIngressServerRuntime:  # pragma: no cover - import stub only
-        bind_address = "127.0.0.1:0"
-        port = 0
-
-        def start(self) -> None:
-            return None
-
-        def stop(self, grace_seconds: float = 0.0) -> None:
-            _ = grace_seconds
-
-    setattr(
-        replay_service_mod, "ReplayIngressServerRuntime", _ReplayIngressServerRuntime
-    )
-    setattr(
-        replay_service_mod,
-        "build_replay_ingress_server_first_available",
-        lambda *args, **kwargs: _ReplayIngressServerRuntime(),
-    )
-    sys.modules["runtime.interface.grpc.replay_ingress_server"] = replay_service_mod
-
     sys.modules.pop("runtime.interface.cli.main", None)
-    return importlib.import_module("runtime.interface.cli.main")
+    try:
+        return importlib.import_module("runtime.interface.cli.main")
+    except Exception:
+        _clear_import_stubs()
+        raise
 
 
 class _RecordingManagerClient:
@@ -83,16 +86,17 @@ class _RecordingManagerClient:
 def test_emit_validation_failure_to_manager_uses_bootstrap_failed_shape(
     monkeypatch,
 ) -> None:
-    main_module = _import_main_with_stubs()
     client = _RecordingManagerClient()
     exc = LaunchSpecValidationError(
         reason="launch_spec_invalid",
         field_errors={"runtime_id": "required_field_missing"},
     )
-    main_module._emit_validation_failure_to_manager(
+    from runtime.bootstrap import runtime_entrypoint
+
+    runtime_entrypoint.emit_validation_failure_to_manager(
         manager_client=client,
         exc=exc,
-        identity=main_module._identity_from_raw_bundle(
+        identity=runtime_entrypoint._identity_from_raw_bundle(
             {
                 "runtime_id": "rt-1",
                 "tenant_id": "tenant-1",
@@ -125,7 +129,6 @@ def test_emit_validation_failure_to_manager_uses_bootstrap_failed_shape(
 
 
 def test_emit_validation_failure_to_manager_derives_field_buckets() -> None:
-    main_module = _import_main_with_stubs()
     client = _RecordingManagerClient()
     exc = LaunchSpecValidationError(
         reason="launch_spec_invalid",
@@ -138,7 +141,9 @@ def test_emit_validation_failure_to_manager_derives_field_buckets() -> None:
         },
     )
 
-    main_module._emit_validation_failure_to_manager(
+    from runtime.bootstrap import runtime_entrypoint
+
+    runtime_entrypoint.emit_validation_failure_to_manager(
         manager_client=client,
         exc=exc,
         identity={},
@@ -152,13 +157,20 @@ def test_emit_validation_failure_to_manager_derives_field_buckets() -> None:
 
 
 def test_main_emits_bootstrap_failed_when_load_settings_fails(monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    from runtime.bootstrap import runtime_entrypoint
+    from runtime.bootstrap.minimal_env_validation import MinimalEnvValidationResult
+
     monkeypatch.setenv("RUNTIME_ID", "rt-main-val")
     monkeypatch.setenv("STRATEGY_RUNTIME_MANAGER_BASE_URL", "http://127.0.0.1:8080")
-    main_module = _import_main_with_stubs()
+    _import_main_with_stubs()
     client = _RecordingManagerClient()
-    monkeypatch.setattr(main_module, "build_manager_client", lambda **kwargs: client)
     monkeypatch.setattr(
-        main_module,
+        runtime_entrypoint, "build_manager_client", lambda **_k: client
+    )
+    monkeypatch.setattr(
+        runtime_entrypoint,
         "load_settings",
         lambda: (_ for _ in ()).throw(
             LaunchSpecValidationError(
@@ -167,9 +179,30 @@ def test_main_emits_bootstrap_failed_when_load_settings_fails(monkeypatch) -> No
             )
         ),
     )
+    monkeypatch.setattr(
+        runtime_entrypoint,
+        "validate_minimal_env_from_environ",
+        lambda: MinimalEnvValidationResult(
+            valid=True,
+            field_errors={},
+            message="ok",
+            snapshot=SimpleNamespace(
+                runtime_id="rt-main-val",
+                srm_base_url="http://127.0.0.1:8080",
+                deployment_id="",
+                mode="PAPER",
+            ),
+        ),
+    )
+    monkeypatch.setattr(
+        runtime_entrypoint, "report_minimal_env_validation_to_srm", lambda _r: None
+    )
+    monkeypatch.setattr(
+        runtime_entrypoint, "print_minimal_env_validation_outcome", lambda *_a, **_k: None
+    )
 
     with pytest.raises(SystemExit) as exc_info:
-        main_module.main()
+        runtime_entrypoint.run_runtime_from_cli()
 
     assert exc_info.value.code == 2
     assert len(client.calls) == 1

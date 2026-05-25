@@ -108,25 +108,3 @@ class EventDispatcher:
 
     def dispatch_portfolio(self, event: domain_events.PortfolioUpdatedEvent) -> None:
         self._runtime_handler.handle_portfolio_update(event)
-
-    @staticmethod
-    def portfolio_from_raw(
-        payload: Mapping[str, Any], *, expected_job_id: str
-    ) -> domain_events.PortfolioUpdatedEvent | None:
-        from runtime.application.event_handling.portfolio_update_contract import (
-            parse_portfolio_update_message,
-        )
-
-        result = parse_portfolio_update_message(
-            payload, expected_job_id=expected_job_id
-        )
-        return result.event
-
-    @staticmethod
-    def order_from_raw(payload: Mapping[str, Any]) -> domain_events.OrderUpdatedEvent:
-        return domain_events.OrderUpdatedEvent(
-            order_id=str(payload.get("order_id") or "") or None,
-            status=str(payload.get("status") or "") or None,
-            observed_at=None,
-            payload=dict(payload),
-        )

@@ -3,8 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 
-from runtime.bootstrap.failures import BootstrapFailure, BootstrapStage
-from runtime.bootstrap.launch_spec import LaunchSpec
+from runtime.domain.bootstrap_failures import BootstrapFailure, BootstrapStage
+from runtime.domain.launch_spec import LaunchSpec
 from runtime.bootstrap.persistence import (
     BootstrapPersistenceCoordinator,
 )

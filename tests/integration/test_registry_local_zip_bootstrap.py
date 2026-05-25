@@ -8,7 +8,7 @@ from pathlib import Path
 from runtime.infrastructure.strategy_loader.artifact_fetcher import ArtifactFetcher
 from runtime.infrastructure.strategy_loader.artifact_verifier import ArtifactVerifier
 from runtime.infrastructure.strategy_loader.entrypoint_loader import EntrypointLoader
-from runtime.bootstrap.launch_spec import LaunchSpec
+from runtime.domain.launch_spec import LaunchSpec
 from runtime.bootstrap.sdk_contract_validator import (
     BootstrapPipeline,
     SdkContractValidator,

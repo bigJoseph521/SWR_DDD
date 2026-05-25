@@ -9,7 +9,7 @@ from runtime.domain.errors import (
     RISK_SERVICE_UNAVAILABLE,
     OrderIntentSubmissionError,
 )
-from runtime.infrastructure.grpc.risk_order_intent_client import DependencyClientError
+from runtime.infrastructure.grpc.dependency_client_error import DependencyClientError
 
 
 def _wire_trace_fields(wire: Mapping[str, Any] | None) -> dict[str, Any]:

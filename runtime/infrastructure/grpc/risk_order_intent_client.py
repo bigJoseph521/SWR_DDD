@@ -1,26 +1,15 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
 import grpc
 from google.protobuf.timestamp_pb2 import Timestamp
+from runtime.infrastructure.grpc.dependency_client_error import DependencyClientError
 from runtime.infrastructure.grpc.serializers import (
     risk_worker_pb2,
     risk_worker_pb2_grpc,
 )
-
-
-@dataclass(frozen=True, slots=True)
-class DependencyClientError(Exception):
-    code: str
-    message: str
-    retryable: bool = False
-    details: Mapping[str, Any] = field(default_factory=dict)
-
-    def __str__(self) -> str:
-        return self.message
 
 
 def _utc_now() -> datetime:

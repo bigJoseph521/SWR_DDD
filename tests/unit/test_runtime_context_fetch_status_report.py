@@ -3,7 +3,7 @@ from __future__ import annotations
 from unittest.mock import patch
 
 import pytest
-from runtime.bootstrap.launch_spec import LaunchSpecValidationError
+from runtime.domain.launch_spec import LaunchSpecValidationError
 from runtime.bootstrap.minimal_env_validation import (
     SWR_CONTEXT_FETCH_FAILED,
     SWR_CONTEXT_VALIDATION_FAILED,

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from runtime.bootstrap.backtest_replay_tick_filter import (
-    skip_backtest_replay_tick_for_ingest,
+from runtime.infrastructure.backtest.backtest_bar_timeframe_filter import (
+    should_skip_backtest_historical_market_event,
 )
 from runtime.infrastructure.strategy_loader.strategy_bundle_loader import (
     effective_bar_timeframe,
@@ -50,28 +50,28 @@ def test_parse_market_data_feeds_root_market_data_streams_overrides_parameters()
 
 
 def test_skip_backtest_replay_tick_non_bar() -> None:
-    assert skip_backtest_replay_tick_for_ingest(
+    assert should_skip_backtest_historical_market_event(
         {"type": "market.tick"},
         expected_bar_timeframe="1m",
     )
 
 
 def test_skip_backtest_replay_tick_wrong_timeframe() -> None:
-    assert skip_backtest_replay_tick_for_ingest(
+    assert should_skip_backtest_historical_market_event(
         {"type": "market.bar", "timeframe": "5m"},
         expected_bar_timeframe="1m",
     )
 
 
 def test_skip_backtest_replay_tick_bar_allowed() -> None:
-    assert not skip_backtest_replay_tick_for_ingest(
+    assert not should_skip_backtest_historical_market_event(
         {"type": "market.bar", "timeframe": "1min"},
         expected_bar_timeframe="1m",
     )
 
 
 def test_skip_backtest_replay_tick_bar_no_timeframe_allowed() -> None:
-    assert not skip_backtest_replay_tick_for_ingest(
+    assert not should_skip_backtest_historical_market_event(
         {"type": "market.bar", "symbol": "X"},
         expected_bar_timeframe="1m",
     )

@@ -10,7 +10,6 @@ from runtime.domain.model.normalized_events import (
     MarketBarEvent,
     MarketQuoteEvent,
     MarketTickEvent,
-    OrderUpdatedEvent,
     PortfolioUpdatedEvent,
     RuntimeEvent,
     TimerEvent,
@@ -31,9 +30,6 @@ class RuntimeEventHandler:
 
     def has_market_handler(self) -> bool:
         return self._market_handler is not None
-
-    def has_portfolio_handler(self) -> bool:
-        return self._portfolio_handler is not None
 
     def handle_raw_tick(self, raw_event: Mapping[str, Any]) -> Any:
         if self._market_handler is None:
@@ -61,6 +57,3 @@ class RuntimeEventHandler:
         elif isinstance(event, PortfolioUpdatedEvent):
             if self._portfolio_handler is not None:
                 self._portfolio_handler.handle(event)
-        elif isinstance(event, OrderUpdatedEvent):
-            # Order updates adjust runtime context only; strategy hooks unchanged.
-            pass

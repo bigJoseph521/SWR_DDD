@@ -62,19 +62,10 @@ class PortfolioUpdatedEvent:
     equity: Decimal
 
 
-@dataclass(frozen=True, slots=True)
-class OrderUpdatedEvent:
-    order_id: str | None
-    status: str | None
-    observed_at: datetime | None
-    payload: Mapping[str, Any] = field(default_factory=dict)
-
-
 RuntimeEvent = (
     MarketBarEvent
     | MarketQuoteEvent
     | MarketTickEvent
     | TimerEvent
     | PortfolioUpdatedEvent
-    | OrderUpdatedEvent
 )

@@ -21,7 +21,6 @@ class Capability(str, Enum):
     SIMULATED_CLOCK = "SIMULATED_CLOCK"
     RISK_ORDER_INTENT_EGRESS = "RISK_ORDER_INTENT_EGRESS"
     MANAGER_SIGNAL = "MANAGER_SIGNAL"
-    REPLAY_INGRESS = "REPLAY_INGRESS"
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,7 +86,6 @@ _MODE_CAPABILITIES: dict[WorkerMode, frozenset[Capability]] = {
         {
             Capability.SIMULATED_CLOCK,
             Capability.MANAGER_SIGNAL,
-            Capability.REPLAY_INGRESS,
             Capability.RISK_ORDER_INTENT_EGRESS,
         }
     ),
@@ -97,27 +95,21 @@ _MODE_ALLOWED_DEPENDENCIES: Final[dict[WorkerMode, frozenset[str]]] = {
     WorkerMode.PAPER: frozenset(
         {
             ServiceTarget.STRATEGY_RUNTIME_MANAGER.value,
-            ServiceTarget.ORDER_MANAGEMENT_SERVICE.value,
             ServiceTarget.MARKET_DATA_SERVICE.value,
-            DependencyAccessPattern.PAPER_LIVE_ORDER_INTENT.value,
             DependencyAccessPattern.RISK_ORDER_INTENT_EGRESS.value,
         }
     ),
     WorkerMode.LIVE: frozenset(
         {
             ServiceTarget.STRATEGY_RUNTIME_MANAGER.value,
-            ServiceTarget.ORDER_MANAGEMENT_SERVICE.value,
             ServiceTarget.MARKET_DATA_SERVICE.value,
-            DependencyAccessPattern.PAPER_LIVE_ORDER_INTENT.value,
             DependencyAccessPattern.RISK_ORDER_INTENT_EGRESS.value,
         }
     ),
     WorkerMode.BACKTEST: frozenset(
         {
             ServiceTarget.STRATEGY_RUNTIME_MANAGER.value,
-            ServiceTarget.BACKTEST_SERVICE.value,
             DependencyAccessPattern.BACKTEST_ORDER_INTENT.value,
-            DependencyAccessPattern.BACKTEST_REPLAY_CONTEXT.value,
             DependencyAccessPattern.RISK_ORDER_INTENT_EGRESS.value,
         }
     ),

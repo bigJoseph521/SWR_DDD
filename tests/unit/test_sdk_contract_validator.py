@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 from alphovex_sdk.strategy import Strategy as AlphovexStrategy
 from runtime.infrastructure.strategy_loader.entrypoint_loader import EntrypointLoadResult
-from runtime.bootstrap.failures import (
+from runtime.domain.bootstrap_failures import (
     BootstrapStage,
     SDKContractFailure,
 )

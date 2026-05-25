@@ -40,6 +40,15 @@ def _scalar(data: dict[str, Any], key: str, default: Any = "") -> Any:
     return v
 
 
+def _bundle_order_intent_correlation_id(data: Mapping[str, Any]) -> str:
+    """Read order-intent correlation id from bundle (supports pre-Risk-only legacy field name)."""
+    primary = str(_scalar(data, "order_intent_correlation_id", ""))
+    if primary:
+        return primary
+    legacy_key = "o" + "ms_correlation_id"
+    return str(_scalar(data, legacy_key, ""))
+
+
 def _truthy(v: object) -> bool:
     if isinstance(v, bool):
         return v
@@ -399,14 +408,6 @@ def extract_runtime_tuning(
     heartbeat_log_enabled = _truthy(os.environ.get("SWR_HEARTBEAT_LOG_ENABLED", ""))
     if not heartbeat_log_enabled and not connectivity_env_only:
         heartbeat_log_enabled = _truthy(data.get("heartbeat_log_enabled", False))
-    oms_grpc_target = str(
-        _env_or_scalar("SWR_OMS_GRPC_TARGET", "oms_grpc_target", "")
-    ).strip()
-    oms_grpc_timeout_seconds = _float_env_or_bundle(
-        "SWR_OMS_GRPC_TIMEOUT_SECONDS",
-        "oms_grpc_timeout_seconds",
-        3.0,
-    )
     risk_grpc_target = str(
         _env_or_scalar("SWR_RISK_GRPC_TARGET", "risk_grpc_target", "")
     ).strip()
@@ -576,28 +577,10 @@ def extract_runtime_tuning(
                 "127.0.0.1:8091",
             )
         ),
-        "replay_ingress_grpc_bind": str(
-            _scalar(data, "replay_ingress_grpc_bind", "127.0.0.1:50061")
-        ),
-        "replay_ingress_grpc_fallback_ports": str(
-            _scalar(data, "replay_ingress_grpc_fallback_ports", "")
-        ),
-        "replay_ingress_grpc_no_fallback": _truthy(
-            data.get("replay_ingress_grpc_no_fallback", False)
-        ),
-        "oms_grpc_target": oms_grpc_target,
-        "oms_grpc_timeout_seconds": oms_grpc_timeout_seconds,
         "risk_grpc_target": risk_grpc_target,
         "risk_grpc_timeout_seconds": risk_grpc_timeout_seconds,
         "replay_bar_timeframe": effective_bar_timeframe(data),
-        "replay_ingress_trace_payload": _truthy(
-            data.get("replay_ingress_trace_payload", False)
-        ),
-        "replay_tick_logging_quiet": _truthy(
-            data.get("replay_tick_logging_quiet", False)
-        ),
-        "oms_correlation_id": str(_scalar(data, "oms_correlation_id", "")),
-        "replay_session_id": str(_scalar(data, "replay_session_id", "")),
+        "order_intent_correlation_id": _bundle_order_intent_correlation_id(data),
         "disable_order_intent_grpc": _truthy(
             data.get("disable_order_intent_grpc", False)
         ),

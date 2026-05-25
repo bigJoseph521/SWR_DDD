@@ -8,8 +8,12 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Callable
 
+from runtime.application.lifecycle.stop_errors import (
+    StopAlreadyInProgress,
+    WorkerAlreadyStopped,
+)
 from runtime.domain.errors import WorkerInternalCallerNotAllowedError
-from runtime.infrastructure.http.auth import (
+from runtime.application.http.internal_auth import (
     parse_internal_auth_metadata,
     require_internal_control,
 )
@@ -166,9 +170,10 @@ class StopControlHttpServer:
         return host, port
 
 
-class StopAlreadyInProgress(RuntimeError):
-    """Stop request received while shutdown is already in progress."""
+# Re-export for callers that handled stop conflicts via the HTTP adapter module.
+__all__ = [
+    "StopAlreadyInProgress",
+    "StopControlHttpServer",
+    "WorkerAlreadyStopped",
+]
 
-
-class WorkerAlreadyStopped(RuntimeError):
-    """Stop request received after worker shutdown completed."""
