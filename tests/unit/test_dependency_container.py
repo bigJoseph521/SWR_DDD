@@ -5,9 +5,9 @@ from pathlib import Path
 from runtime.application.dependency_container import (
     build_dependency_container,
 )
-from runtime.config.settings import load_settings_from_bundle_dict
-from runtime.config.settings import Settings
-from runtime.domain.enums import RuntimeMode
+from runtime.infrastructure.config.settings import load_settings_from_bundle_dict
+from runtime.infrastructure.config.settings import Settings
+from runtime.domain.enums import WorkerMode
 
 
 def _settings_bundle(mode: str) -> dict[str, object]:
@@ -21,6 +21,7 @@ def _settings_bundle(mode: str) -> dict[str, object]:
         "artifact_digest": "sha256:abcd",
         "entrypoint": "strategy.main:Strategy",
         "launch_attempt": 1,
+        "deployment_id": "dep-test",
     }
 
 
@@ -41,7 +42,7 @@ def test_build_is_deterministic_and_runtime_deps_are_singleton() -> None:
 
     assert first is second
     assert container.launch_spec.runtime_id == "rt-paper"
-    assert container.mode_policy.mode is RuntimeMode.PAPER
+    assert container.mode_policy.mode is WorkerMode.PAPER
 
 
 def test_mode_wiring_paper_allows_oms_and_blocks_replay() -> None:
@@ -49,11 +50,11 @@ def test_mode_wiring_paper_allows_oms_and_blocks_replay() -> None:
     container = build_dependency_container(settings)
     deps = container.runtime_dependencies_initializer()
 
-    assert deps.oms is not None
+    assert deps.risk_order_intent is not None
     assert deps.replay is None
 
 
-def test_mode_wiring_backtest_allows_replay_and_risk_oms_gateway() -> None:
+def test_mode_wiring_backtest_allows_replay_and_risk_order_intent_gateway() -> None:
     settings = _load(
         "BACKTEST",
         job_id="job-1",
@@ -63,7 +64,7 @@ def test_mode_wiring_backtest_allows_replay_and_risk_oms_gateway() -> None:
     container = build_dependency_container(settings)
     deps = container.runtime_dependencies_initializer()
 
-    assert deps.oms is not None
+    assert deps.risk_order_intent is not None
     assert deps.replay is not None
 
 

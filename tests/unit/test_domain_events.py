@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import logging
 
-from runtime.observability.domain_events import (
+from runtime.infrastructure.observability.domain_events import (
     DomainEventSampler,
     StrategyWorkerDomainEvent,
     emit_bound_domain_event,
     emit_strategy_worker_domain_event,
 )
-from runtime.observability.logger import RuntimeLogContext, bind_runtime_context
+from runtime.infrastructure.observability.logger import RuntimeLogContext, bind_runtime_context
 
 
 class _CaptureHandler(logging.Handler):

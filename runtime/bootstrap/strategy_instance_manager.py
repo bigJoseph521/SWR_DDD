@@ -5,9 +5,9 @@ from dataclasses import dataclass
 from hashlib import sha256
 from typing import Callable
 
-from runtime.bootstrap.strategy_adapter import StrategyAdapter
-from runtime.bootstrap.strategy_error_boundary import StrategyCallResult
-from runtime.domain.enums import RuntimeMode
+from runtime.application.strategy_execution.strategy_adapter import StrategyAdapter
+from runtime.application.strategy_execution.strategy_error_boundary import StrategyCallResult
+from runtime.domain.enums import WorkerMode
 from runtime.domain.errors import SingleAssignmentViolationError
 
 
@@ -16,7 +16,7 @@ class StrategyAssignmentKey:
     runtime_id: str
     strategy_version_id: str
     tenant_id: str
-    mode: RuntimeMode
+    mode: WorkerMode
     launch_attempt: int
     validated_parameter_identity: str | None = None
     trader_id: str | None = None

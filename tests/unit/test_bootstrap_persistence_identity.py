@@ -8,10 +8,10 @@ from runtime.bootstrap.launch_spec import LaunchSpec
 from runtime.bootstrap.persistence import (
     BootstrapPersistenceCoordinator,
 )
-from runtime.domain.enums import RuntimeMode
-from runtime.persistence.db import begin_connection, create_engine
-from runtime.persistence.migrations import apply_migrations
-from runtime.persistence.repositories import (
+from runtime.domain.enums import WorkerMode
+from runtime.infrastructure.persistence.db import begin_connection, create_engine
+from runtime.infrastructure.persistence.migrations import apply_migrations
+from runtime.infrastructure.persistence.repositories import (
     SQLiteDiagnosticRepository,
     SQLiteLaunchAttemptRepository,
     SQLiteWorkerEventRepository,
@@ -24,7 +24,7 @@ def _launch_spec(launch_attempt: int = 1) -> LaunchSpec:
         runtime_id="rt-bootstrap",
         tenant_id="tenant-1",
         strategy_version_id="sv-1",
-        mode=RuntimeMode.BACKTEST,
+        mode=WorkerMode.BACKTEST,
         launch_attempt=launch_attempt,
         artifact_uri="file:///tmp/strategy",
         entrypoint="strategy.main:Strategy",

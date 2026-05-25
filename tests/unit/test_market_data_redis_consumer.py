@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from runtime.integration.market_data_redis_feed import (
+from runtime.infrastructure.redis.market_data_redis_feed import (
     STREAM_AM_1M,
     build_market_data_consumer_group_name,
     classify_stream_payload_failure,
@@ -127,7 +127,7 @@ def test_run_market_data_xread_uses_block_zero(
     )
     fake = _FakeRedis(payloads=[(f"{STREAM_AM_1M}:7", "1-0", "AAPL", bar)])
     monkeypatch.setattr(
-        "runtime.integration.market_data_redis_feed._open_redis_client",
+        "runtime.infrastructure.redis.market_data_redis_feed._open_redis_client",
         lambda _url: fake,
     )
     stop = threading.Event()
@@ -175,7 +175,7 @@ def test_run_market_data_redis_consumer_group_invokes_on_tick_and_xacks(
     )
 
     monkeypatch.setattr(
-        "runtime.integration.market_data_redis_feed._open_redis_client",
+        "runtime.infrastructure.redis.market_data_redis_feed._open_redis_client",
         lambda _url: fake,
     )
 
@@ -231,7 +231,7 @@ def test_run_market_data_redis_malformed_does_not_crash_loop(
     )
 
     monkeypatch.setattr(
-        "runtime.integration.market_data_redis_feed._open_redis_client",
+        "runtime.infrastructure.redis.market_data_redis_feed._open_redis_client",
         lambda _url: fake,
     )
     stop = threading.Event()
@@ -275,7 +275,7 @@ def test_run_market_data_redis_on_tick_exception_still_xacks(
     )
     fake = _FakeRedis(payloads=[(f"{STREAM_AM_1M}:0", "1-0", "AAPL", bar)])
     monkeypatch.setattr(
-        "runtime.integration.market_data_redis_feed._open_redis_client",
+        "runtime.infrastructure.redis.market_data_redis_feed._open_redis_client",
         lambda _url: fake,
     )
     stop = threading.Event()

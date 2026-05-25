@@ -5,9 +5,9 @@ import io
 import zipfile
 from pathlib import Path
 
-from runtime.bootstrap.artifact_fetcher import ArtifactFetcher
-from runtime.bootstrap.artifact_verifier import ArtifactVerifier
-from runtime.bootstrap.entrypoint_loader import EntrypointLoader
+from runtime.infrastructure.strategy_loader.artifact_fetcher import ArtifactFetcher
+from runtime.infrastructure.strategy_loader.artifact_verifier import ArtifactVerifier
+from runtime.infrastructure.strategy_loader.entrypoint_loader import EntrypointLoader
 from runtime.bootstrap.launch_spec import LaunchSpec
 from runtime.bootstrap.sdk_contract_validator import (
     BootstrapPipeline,
@@ -66,14 +66,15 @@ def test_strategy_bundle_zip_verify_extract_and_bootstrap(tmp_path: Path) -> Non
 
     spec = _spec(artifact_uri="strategy_bundle/artifact.zip", artifact_digest=digest)
 
+    work_root = tmp_path / "materialized"
     pipeline = BootstrapPipeline(
         fetcher=ArtifactFetcher(
-            work_root=tmp_path / "materialized",
+            work_root=work_root,
             strategy_bundle_base=tmp_path,
         ),
         verifier=ArtifactVerifier(),
         entrypoint_loader=EntrypointLoader(),
-        sdk_validator=SdkContractValidator(),
+        sdk_validator=SdkContractValidator(work_root=work_root),
     )
 
     result = pipeline.run(spec)
@@ -93,14 +94,15 @@ def test_strategy_bundle_zip_digest_mismatch_fails_fetch(tmp_path: Path) -> None
         artifact_digest="sha256:" + "0" * 64,
     )
 
+    work_root = tmp_path / "materialized"
     pipeline = BootstrapPipeline(
         fetcher=ArtifactFetcher(
-            work_root=tmp_path / "materialized",
+            work_root=work_root,
             strategy_bundle_base=tmp_path,
         ),
         verifier=ArtifactVerifier(),
         entrypoint_loader=EntrypointLoader(),
-        sdk_validator=SdkContractValidator(),
+        sdk_validator=SdkContractValidator(work_root=work_root),
     )
 
     result = pipeline.run(spec)

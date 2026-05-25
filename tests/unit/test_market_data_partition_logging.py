@@ -7,7 +7,7 @@ import types
 from typing import Any
 import pytest
 
-from runtime.integration.market_data_redis_feed import (
+from runtime.infrastructure.redis.market_data_redis_feed import (
     STREAM_AM_1M,
     run_market_data_redis_loop,
 )
@@ -81,7 +81,7 @@ def test_partition_logs_other_symbol_without_dispatching_strategy(
         ],
     )
     monkeypatch.setattr(
-        "runtime.integration.market_data_redis_feed._open_redis_client",
+        "runtime.infrastructure.redis.market_data_redis_feed._open_redis_client",
         lambda _url: fake,
     )
     stop = threading.Event()

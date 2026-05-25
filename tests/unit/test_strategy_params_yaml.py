@@ -9,8 +9,8 @@ import pytest
 
 pytest.importorskip("yaml")
 
-from runtime.strategy_contract.sdk_runtime_types import ParameterSchema
-from runtime.strategy_contract.strategy_params_yaml import (
+from runtime.infrastructure.sdk.sdk_runtime_types import ParameterSchema
+from runtime.infrastructure.sdk.strategy_params_yaml import (
     discover_adjacent_params_yaml,
     discover_params_yaml_adjacent_to_module_file,
     load_indicator_params_from_params_yaml,

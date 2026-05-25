@@ -3,14 +3,14 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from alphovex_sdk.strategy.base import Strategy as SdkStrategy
-from runtime.bootstrap.event_mapper import MarketBarEvent
+from runtime.application.strategy_execution.event_mapper import MarketBarEvent
 from runtime.bootstrap.launch_spec import LaunchSpec
-from runtime.bootstrap.replay_sdk_bridge import build_replay_sdk_bridge
-from runtime.bootstrap.strategy_adapter import StrategyAdapter
-from runtime.domain.enums import RuntimeMode
+from runtime.infrastructure.sdk.replay_sdk_bridge import build_replay_sdk_bridge
+from runtime.application.strategy_execution.strategy_adapter import StrategyAdapter
+from runtime.domain.enums import WorkerMode
 from runtime.domain.worker_identity import WorkerIdentity
-from runtime.integration.clock import SimulatedClock
-from runtime.strategy_contract.sdk_runtime_types import (
+from runtime.infrastructure.clock.clock import SimulatedClock
+from runtime.infrastructure.sdk.sdk_runtime_types import (
     AssetClass,
     ParameterSchema,
     StrategyMetadata,
@@ -44,7 +44,7 @@ def test_replay_bridge_dispatches_market_bar_to_on_bar() -> None:
         runtime_id="r1",
         tenant_id="t1",
         strategy_version_id="sv1",
-        mode=RuntimeMode.BACKTEST,
+        mode=WorkerMode.BACKTEST,
         launch_attempt=1,
         artifact_uri="uri",
         entrypoint="ep",
@@ -55,7 +55,7 @@ def test_replay_bridge_dispatches_market_bar_to_on_bar() -> None:
         runtime_id="r1",
         tenant_id="t1",
         strategy_version_id="sv1",
-        mode=RuntimeMode.BACKTEST,
+        mode=WorkerMode.BACKTEST,
         account_id="acc1",
         trader_id=None,
         artifact_uri="uri",
@@ -116,7 +116,7 @@ def test_replay_bridge_dispatches_market_quote_to_on_quote() -> None:
         runtime_id="r1",
         tenant_id="t1",
         strategy_version_id="sv1",
-        mode=RuntimeMode.BACKTEST,
+        mode=WorkerMode.BACKTEST,
         launch_attempt=1,
         artifact_uri="uri",
         entrypoint="ep",
@@ -127,7 +127,7 @@ def test_replay_bridge_dispatches_market_quote_to_on_quote() -> None:
         runtime_id="r1",
         tenant_id="t1",
         strategy_version_id="sv1",
-        mode=RuntimeMode.BACKTEST,
+        mode=WorkerMode.BACKTEST,
         account_id="acc1",
         trader_id=None,
         artifact_uri="uri",
@@ -165,7 +165,7 @@ def _launch_and_identity() -> tuple[LaunchSpec, WorkerIdentity]:
         runtime_id="r1",
         tenant_id="t1",
         strategy_version_id="sv1",
-        mode=RuntimeMode.BACKTEST,
+        mode=WorkerMode.BACKTEST,
         launch_attempt=1,
         artifact_uri="uri",
         entrypoint="ep",
@@ -176,7 +176,7 @@ def _launch_and_identity() -> tuple[LaunchSpec, WorkerIdentity]:
         runtime_id="r1",
         tenant_id="t1",
         strategy_version_id="sv1",
-        mode=RuntimeMode.BACKTEST,
+        mode=WorkerMode.BACKTEST,
         account_id="acc1",
         trader_id=None,
         artifact_uri="uri",

@@ -4,10 +4,10 @@ from datetime import datetime, timezone
 from typing import Mapping
 
 import grpc
-from runtime.transport.grpc.replay_service import (
+from runtime.interface.grpc.replay_ingress_server import (
     build_replay_ingress_server,
 )
-from runtime.transport.grpc.serializers import (
+from runtime.infrastructure.grpc.serializers import (
     replay_worker_pb2,
     replay_worker_pb2_grpc,
 )

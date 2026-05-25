@@ -5,7 +5,7 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-from runtime.application.lifecycle_service import LifecycleService
+from runtime.application.lifecycle.lifecycle_service import LifecycleService
 from runtime.domain.enums import WorkerPhase
 
 
@@ -50,7 +50,6 @@ class WorkerApp:
             "producer": "strategy-worker-runtime",
             "occurred_at": now_text,
             "correlation_id": "",
-            "causation_id": "",
             "tenant_id": str(runtime_meta.get("tenant_id") or ""),
             "account_id": str(runtime_meta.get("account_id") or ""),
             "runtime_id": str(runtime_meta.get("runtime_id") or ""),

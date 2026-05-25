@@ -6,9 +6,9 @@ from pathlib import Path
 
 from sqlalchemy import text
 from runtime.domain.enums import WorkerPhase
-from runtime.events.event_envelope import LifecycleEventEnvelope
-from runtime.persistence.db import begin_connection, create_engine
-from runtime.persistence.runtime_journal_sink import RuntimeJournalSink
+from runtime.domain.events.event_envelope import LifecycleEventEnvelope
+from runtime.infrastructure.persistence.db import begin_connection, create_engine
+from runtime.infrastructure.persistence.runtime_journal_sink import RuntimeJournalSink
 
 
 def test_runtime_journal_order_intent_symbol_column_from_parameters_nested(
@@ -438,7 +438,7 @@ def test_runtime_journal_sink_heartbeat(tmp_path: Path) -> None:
         ).one()
         inst = conn.execute(
             text(
-                "SELECT state, last_heartbeat_at, correlation_id, causation_id "
+                "SELECT state, last_heartbeat_at, correlation_id "
                 "FROM worker_instances WHERE runtime_id = 'rt-c'"
             )
         ).one()
@@ -451,7 +451,6 @@ def test_runtime_journal_sink_heartbeat(tmp_path: Path) -> None:
     assert inst[0] == "RUNNING"
     assert inst[1] == "2026-01-15T12:00:02Z"
     assert inst[2] is None
-    assert inst[3] is None
 
 
 def test_runtime_journal_sink_records_lifecycle_event_to_worker_events(
@@ -474,7 +473,6 @@ def test_runtime_journal_sink_records_lifecycle_event_to_worker_events(
         event_version=1,
         occurred_at=occurred,
         correlation_id="corr:rt-e:4",
-        causation_id="cmd_heartbeat_rt-e_4",
         producer="strategy-worker-runtime",
         payload={"local_state": "RUNNING", "observed_at": occurred},
         runtime_id="rt-e",
@@ -494,13 +492,13 @@ def test_runtime_journal_sink_records_lifecycle_event_to_worker_events(
         ).one()
         heartbeat = conn.execute(
             text(
-                "SELECT correlation_id, causation_id, details "
+                "SELECT correlation_id, details "
                 "FROM worker_heartbeat_observations LIMIT 1"
             )
         ).one()
         inst = conn.execute(
             text(
-                "SELECT state, reason_code, correlation_id, causation_id, last_heartbeat_at "
+                "SELECT state, reason_code, correlation_id, last_heartbeat_at "
                 "FROM worker_instances WHERE runtime_id = 'rt-e'"
             )
         ).one()
@@ -513,11 +511,9 @@ def test_runtime_journal_sink_records_lifecycle_event_to_worker_events(
     assert inst[0] == "RUNNING"
     assert inst[1] is None
     assert inst[2] == "corr:rt-e:4"
-    assert inst[3] == "cmd_heartbeat_rt-e_4"
-    assert inst[4] == "2026-01-15T12:00:04Z"
+    assert inst[3] == "2026-01-15T12:00:04Z"
     assert heartbeat[0] == "corr:rt-e:4"
-    assert heartbeat[1] == "cmd_heartbeat_rt-e_4"
-    hb_details = json.loads(heartbeat[2] or "{}")
+    hb_details = json.loads(heartbeat[1] or "{}")
     assert hb_details["local_state"] == "RUNNING"
 
 
@@ -541,7 +537,6 @@ def test_runtime_journal_sink_lifecycle_reason_code_persists_on_phase_update(
         event_version=1,
         occurred_at=observed,
         correlation_id="corr:rt-r:7",
-        causation_id="cmd_terminated_rt-r_7",
         producer="strategy-worker-runtime",
         payload={
             "local_state": "STOPPED",
@@ -565,11 +560,10 @@ def test_runtime_journal_sink_lifecycle_reason_code_persists_on_phase_update(
     with begin_connection(engine) as conn:
         inst = conn.execute(
             text(
-                "SELECT state, reason_code, correlation_id, causation_id "
+                "SELECT state, reason_code, correlation_id "
                 "FROM worker_instances WHERE runtime_id = 'rt-r'"
             )
         ).one()
     assert inst[0] == "STOPPED"
     assert inst[1] == "STOP_REQUESTED"
     assert inst[2] == "corr:rt-r:7"
-    assert inst[3] == "cmd_terminated_rt-r_7"

@@ -3,37 +3,28 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 from types import SimpleNamespace
-from typing import Mapping
 from unittest.mock import MagicMock
 
 import pytest
-from runtime.application.lifecycle_service import (
+from runtime.application.lifecycle.lifecycle_service import (
     LifecycleService,
     _backtest_window_bounds,
     _coerce_timestamp,
 )
 from runtime.bootstrap.launch_spec import LaunchSpec
 from runtime.bootstrap.validator import LaunchSpecValidator
-from runtime.domain.enums import RuntimeMode
+from runtime.domain.enums import WorkerMode
 from runtime.domain.worker_identity import WorkerIdentity
-from runtime.integration.clock import SimulatedClock
-from runtime.integration.manager_gateway import ManagerGateway
-from runtime.integration.replay_gateway import ReplayGateway
-from runtime.observability.logger import (
+from runtime.infrastructure.clock.clock import SimulatedClock
+from runtime.infrastructure.http.srm.manager_gateway import ManagerGateway
+from runtime.infrastructure.grpc.replay.replay_gateway import ReplayGateway
+from runtime.infrastructure.observability.logger import (
     RuntimeBoundLogger,
     RuntimeLogContext,
     bind_runtime_context,
 )
-from runtime.runtime.dependencies import RuntimeDependencies
-from runtime.runtime.mode_policy import get_mode_policy
-
-
-class _FakeReplayClient:
-    def __init__(self) -> None:
-        self.ingested: list[dict[str, object]] = []
-
-    def ingest_replay_tick(self, payload: Mapping[str, object]) -> None:
-        self.ingested.append(dict(payload))
+from runtime.application.runtime_dependencies import RuntimeDependencies
+from runtime.domain.policies.mode_policy import get_mode_policy
 
 
 class _FakeManager:
@@ -107,21 +98,18 @@ def test_backtest_window_bounds_from_launch_spec() -> None:
 def test_backtest_push_replay_stops_after_end_of_stream() -> None:
     payload = _backtest_payload()
     spec = LaunchSpec.from_payload(payload)
-    client = _FakeReplayClient()
     clock = SimulatedClock()
     replay = ReplayGateway(
-        get_mode_policy(RuntimeMode.BACKTEST),
-        client,
-        simulated_clock=clock,
+        get_mode_policy(WorkerMode.BACKTEST), simulated_clock=clock
     )
 
     def _deps() -> RuntimeDependencies:
         return RuntimeDependencies(
             clock=clock,
             manager=ManagerGateway(
-                get_mode_policy(RuntimeMode.BACKTEST), _FakeManager(), _identity(spec)
+                get_mode_policy(WorkerMode.BACKTEST), _FakeManager(), _identity(spec)
             ),
-            oms=None,
+            risk_order_intent=None,
             replay=replay,
         )
 
@@ -153,7 +141,6 @@ def test_backtest_push_replay_stops_after_end_of_stream() -> None:
         }
     )
     assert r1["consumed_count"] == 1
-    assert len(client.ingested) == 1
 
     r2 = lifecycle.push_replay_context(
         {
@@ -164,7 +151,6 @@ def test_backtest_push_replay_stops_after_end_of_stream() -> None:
         }
     )
     assert r2["consumed_count"] == 1
-    assert len(client.ingested) == 2
     assert lifecycle.backtest_replay_complete is True
 
     r3 = lifecycle.push_replay_context(
@@ -176,27 +162,23 @@ def test_backtest_push_replay_stops_after_end_of_stream() -> None:
         }
     )
     assert r3["consumed_count"] == 0
-    assert len(client.ingested) == 2
 
 
 def test_backtest_skips_events_outside_ts_window() -> None:
     payload = _backtest_payload()
     spec = LaunchSpec.from_payload(payload)
-    client = _FakeReplayClient()
     clock = SimulatedClock()
     replay = ReplayGateway(
-        get_mode_policy(RuntimeMode.BACKTEST),
-        client,
-        simulated_clock=clock,
+        get_mode_policy(WorkerMode.BACKTEST), simulated_clock=clock
     )
 
     def _deps() -> RuntimeDependencies:
         return RuntimeDependencies(
             clock=clock,
             manager=ManagerGateway(
-                get_mode_policy(RuntimeMode.BACKTEST), _FakeManager(), _identity(spec)
+                get_mode_policy(WorkerMode.BACKTEST), _FakeManager(), _identity(spec)
             ),
-            oms=None,
+            risk_order_intent=None,
             replay=replay,
         )
 
@@ -245,7 +227,6 @@ def test_backtest_skips_events_outside_ts_window() -> None:
         }
     )
     assert r["consumed_count"] == 1
-    assert [x.get("event_id") for x in client.ingested] == ["b"]
 
 
 def test_backtest_push_replay_prints_data_trace_when_enabled(
@@ -253,21 +234,18 @@ def test_backtest_push_replay_prints_data_trace_when_enabled(
 ) -> None:
     payload = _backtest_payload()
     spec = LaunchSpec.from_payload(payload)
-    client = _FakeReplayClient()
     clock = SimulatedClock()
     replay = ReplayGateway(
-        get_mode_policy(RuntimeMode.BACKTEST),
-        client,
-        simulated_clock=clock,
+        get_mode_policy(WorkerMode.BACKTEST), simulated_clock=clock
     )
 
     def _deps() -> RuntimeDependencies:
         return RuntimeDependencies(
             clock=clock,
             manager=ManagerGateway(
-                get_mode_policy(RuntimeMode.BACKTEST), _FakeManager(), _identity(spec)
+                get_mode_policy(WorkerMode.BACKTEST), _FakeManager(), _identity(spec)
             ),
-            oms=None,
+            risk_order_intent=None,
             replay=replay,
         )
 

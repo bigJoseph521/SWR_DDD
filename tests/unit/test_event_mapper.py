@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pytest
-from runtime.bootstrap.event_mapper import (
+from runtime.application.strategy_execution.event_mapper import (
     EventMapper,
     EventMappingError,
     MarketBarEvent,

@@ -6,13 +6,13 @@ from urllib.error import URLError
 
 import pytest
 
-from runtime.bootstrap.deployment_runtime_context_bootstrap import (
+from runtime.infrastructure.strategy_loader.deployment_runtime_context_bootstrap import (
     _data_source_to_feed_list,
     fetch_bundle_from_deployment_runtime_context,
     worker_bundle_dict_from_runtime_context_response,
 )
 from runtime.bootstrap.launch_spec import LaunchSpecValidationError
-from runtime.config.settings import load_settings
+from runtime.infrastructure.config.settings import load_settings
 
 
 def _mock_urlopen_context(body: bytes, *, code: int = 200) -> MagicMock:
@@ -95,7 +95,7 @@ def test_fetch_bundle_requires_runtime_identity(
     ).encode()
 
     with patch(
-        "runtime.bootstrap.deployment_runtime_context_bootstrap.urlopen",
+        "runtime.infrastructure.strategy_loader.deployment_runtime_context_bootstrap.urlopen",
         return_value=_mock_urlopen_context(body),
     ):
         with pytest.raises(LaunchSpecValidationError) as ei:
@@ -131,7 +131,7 @@ def test_fetch_bundle_strategy_version_id_from_response_without_env_var(
         }
     ).encode()
     with patch(
-        "runtime.bootstrap.deployment_runtime_context_bootstrap.urlopen",
+        "runtime.infrastructure.strategy_loader.deployment_runtime_context_bootstrap.urlopen",
         return_value=_mock_urlopen_context(body),
     ):
         bundle = fetch_bundle_from_deployment_runtime_context(
@@ -168,7 +168,7 @@ def test_fetch_bundle_success(
     ).encode()
 
     with patch(
-        "runtime.bootstrap.deployment_runtime_context_bootstrap.urlopen",
+        "runtime.infrastructure.strategy_loader.deployment_runtime_context_bootstrap.urlopen",
         return_value=_mock_urlopen_context(body),
     ):
         bundle = fetch_bundle_from_deployment_runtime_context(
@@ -187,7 +187,7 @@ def test_fetch_bundle_url_error(tmp_path, monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.setenv("RUNTIME_ID", "r")
     monkeypatch.setenv("SWR_STRATEGY_VERSION_ID", "s")
     with patch(
-        "runtime.bootstrap.deployment_runtime_context_bootstrap.urlopen",
+        "runtime.infrastructure.strategy_loader.deployment_runtime_context_bootstrap.urlopen",
         side_effect=URLError("nope"),
     ):
         with pytest.raises(LaunchSpecValidationError) as ei:
@@ -207,7 +207,7 @@ def test_fetch_bundle_http_error(tmp_path, monkeypatch: pytest.MonkeyPatch) -> N
 
     err = HTTPError("http://h:1/x", 404, "nf", hdrs={}, fp=BytesIO(b'{"x":1}'))
     with patch(
-        "runtime.bootstrap.deployment_runtime_context_bootstrap.urlopen",
+        "runtime.infrastructure.strategy_loader.deployment_runtime_context_bootstrap.urlopen",
         side_effect=err,
     ):
         with pytest.raises(LaunchSpecValidationError) as ei:
@@ -260,7 +260,7 @@ def test_load_settings_prefers_sds_over_strategy_bundle_setting_json(
     }
     body = json.dumps(api).encode()
     with patch(
-        "runtime.bootstrap.deployment_runtime_context_bootstrap.urlopen",
+        "runtime.infrastructure.strategy_loader.deployment_runtime_context_bootstrap.urlopen",
         return_value=_mock_urlopen_context(body),
     ):
         settings = load_settings(print_launch_banner=False)

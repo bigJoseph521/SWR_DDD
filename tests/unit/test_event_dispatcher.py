@@ -5,13 +5,13 @@ from datetime import datetime, timezone
 from typing import Any
 
 import pytest
-from runtime.domain.enums import RuntimeMode
+from runtime.domain.enums import WorkerMode
 from runtime.domain.errors import (
     RuntimeWorkerReasonCode,
     WorkerErrorCode,
 )
-from runtime.integration.manager_gateway import ManagerGateway
-from runtime.runtime.mode_policy import get_mode_policy
+from runtime.infrastructure.http.srm.manager_gateway import ManagerGateway
+from runtime.domain.policies.mode_policy import get_mode_policy
 
 
 class _FakeManagerClient:
@@ -28,7 +28,7 @@ class _Identity:
     runtime_id: str
     tenant_id: str
     strategy_version_id: str
-    mode: RuntimeMode
+    mode: WorkerMode
     launch_attempt: int
     account_id: str = "acct-1"
     trader_id: str | None = None
@@ -41,13 +41,13 @@ def _utc(second: int) -> datetime:
 def test_event_dispatcher_emits_execution_plane_signals_only() -> None:
     client = _FakeManagerClient()
     gateway = ManagerGateway(
-        get_mode_policy(RuntimeMode.PAPER),
+        get_mode_policy(WorkerMode.PAPER),
         client,
         _Identity(
             runtime_id="rt-evt-1",
             tenant_id="tenant-1",
             strategy_version_id="sv-1",
-            mode=RuntimeMode.PAPER,
+            mode=WorkerMode.PAPER,
             launch_attempt=2,
         ),
     )
@@ -78,13 +78,13 @@ def test_event_dispatcher_emits_execution_plane_signals_only() -> None:
 def test_event_dispatcher_payloads_never_use_manager_owned_lifecycle_truth() -> None:
     client = _FakeManagerClient()
     gateway = ManagerGateway(
-        get_mode_policy(RuntimeMode.LIVE),
+        get_mode_policy(WorkerMode.LIVE),
         client,
         _Identity(
             runtime_id="rt-evt-2",
             tenant_id="tenant-2",
             strategy_version_id="sv-1",
-            mode=RuntimeMode.LIVE,
+            mode=WorkerMode.LIVE,
             launch_attempt=5,
         ),
     )
@@ -100,13 +100,13 @@ def test_event_dispatcher_payloads_never_use_manager_owned_lifecycle_truth() -> 
 def test_bootstrap_failed_message_includes_mypy_validation_results() -> None:
     client = _FakeManagerClient()
     gateway = ManagerGateway(
-        get_mode_policy(RuntimeMode.PAPER),
+        get_mode_policy(WorkerMode.PAPER),
         client,
         _Identity(
             runtime_id="rt-evt-mypy",
             tenant_id="tenant-1",
             strategy_version_id="sv-1",
-            mode=RuntimeMode.PAPER,
+            mode=WorkerMode.PAPER,
             launch_attempt=1,
         ),
     )
@@ -146,13 +146,13 @@ def test_manager_signal_wire_heartbeat_payload_is_local_state_and_observed_at_on
 ):
     client = _FakeManagerClient()
     gateway = ManagerGateway(
-        get_mode_policy(RuntimeMode.PAPER),
+        get_mode_policy(WorkerMode.PAPER),
         client,
         _Identity(
             runtime_id="rt-hb-wire",
             tenant_id="tenant-hb",
             strategy_version_id="sv-hb",
-            mode=RuntimeMode.PAPER,
+            mode=WorkerMode.PAPER,
             launch_attempt=1,
         ),
     )
@@ -168,13 +168,13 @@ def test_manager_signal_wire_heartbeat_payload_is_local_state_and_observed_at_on
 def test_manager_signal_wire_termination_runtime_job_completed_is_minimal() -> None:
     client = _FakeManagerClient()
     gateway = ManagerGateway(
-        get_mode_policy(RuntimeMode.PAPER),
+        get_mode_policy(WorkerMode.PAPER),
         client,
         _Identity(
             runtime_id="rt-job-done",
             tenant_id="tenant-wire",
             strategy_version_id="sv-wire",
-            mode=RuntimeMode.PAPER,
+            mode=WorkerMode.PAPER,
             launch_attempt=1,
         ),
     )
@@ -197,13 +197,13 @@ def test_manager_signal_wire_payload_omits_envelope_duplicate_fields() -> None:
     """Protobuf Struct payload must not repeat fields already on the envelope / identity."""
     client = _FakeManagerClient()
     gateway = ManagerGateway(
-        get_mode_policy(RuntimeMode.PAPER),
+        get_mode_policy(WorkerMode.PAPER),
         client,
         _Identity(
             runtime_id="rt-wire-1",
             tenant_id="tenant-wire",
             strategy_version_id="sv-wire",
-            mode=RuntimeMode.PAPER,
+            mode=WorkerMode.PAPER,
             launch_attempt=3,
         ),
     )
@@ -238,13 +238,13 @@ def test_manager_signal_wire_payload_omits_envelope_duplicate_fields() -> None:
 def test_event_dispatcher_requires_manager_client_emit_signal() -> None:
     with pytest.raises(TypeError, match="emit_signal"):
         ManagerGateway(
-            get_mode_policy(RuntimeMode.BACKTEST),
+            get_mode_policy(WorkerMode.BACKTEST),
             object(),
             _Identity(
                 runtime_id="rt-evt-3",
                 tenant_id="tenant-3",
                 strategy_version_id="sv-1",
-                mode=RuntimeMode.BACKTEST,
+                mode=WorkerMode.BACKTEST,
                 launch_attempt=1,
             ),
         ).emit_bootstrap_succeeded(occurred_at=_utc(5))
@@ -254,13 +254,13 @@ def test_manager_gateway_calls_on_event_emitted_callback() -> None:
     client = _FakeManagerClient()
     captured: list[object] = []
     gateway = ManagerGateway(
-        get_mode_policy(RuntimeMode.PAPER),
+        get_mode_policy(WorkerMode.PAPER),
         client,
         _Identity(
             runtime_id="rt-evt-cb",
             tenant_id="tenant-cb",
             strategy_version_id="sv-cb",
-            mode=RuntimeMode.PAPER,
+            mode=WorkerMode.PAPER,
             launch_attempt=1,
         ),
         on_event_emitted=lambda evt: captured.append(evt),
@@ -273,13 +273,13 @@ def test_manager_gateway_calls_on_event_callback_even_when_deduped() -> None:
     client = _FakeManagerClient()
     captured: list[object] = []
     gateway = ManagerGateway(
-        get_mode_policy(RuntimeMode.PAPER),
+        get_mode_policy(WorkerMode.PAPER),
         client,
         _Identity(
             runtime_id="rt-evt-dedupe",
             tenant_id="tenant-cb",
             strategy_version_id="sv-cb",
-            mode=RuntimeMode.PAPER,
+            mode=WorkerMode.PAPER,
             launch_attempt=1,
         ),
         on_event_emitted=lambda evt: captured.append(evt),
@@ -302,13 +302,13 @@ def test_manager_gateway_calls_on_event_callback_even_when_deduped() -> None:
 def test_bootstrap_failed_derives_field_buckets_from_field_errors() -> None:
     client = _FakeManagerClient()
     gateway = ManagerGateway(
-        get_mode_policy(RuntimeMode.PAPER),
+        get_mode_policy(WorkerMode.PAPER),
         client,
         _Identity(
             runtime_id="rt-evt-buckets",
             tenant_id="tenant-1",
             strategy_version_id="sv-1",
-            mode=RuntimeMode.PAPER,
+            mode=WorkerMode.PAPER,
             launch_attempt=1,
         ),
     )
@@ -332,13 +332,13 @@ def test_bootstrap_failed_derives_field_buckets_from_field_errors() -> None:
 def test_bootstrap_failed_artifact_verify_keeps_actual_digest_in_details() -> None:
     client = _FakeManagerClient()
     gateway = ManagerGateway(
-        get_mode_policy(RuntimeMode.PAPER),
+        get_mode_policy(WorkerMode.PAPER),
         client,
         _Identity(
             runtime_id="rt-evt-digest",
             tenant_id="tenant-1",
             strategy_version_id="sv-1",
-            mode=RuntimeMode.PAPER,
+            mode=WorkerMode.PAPER,
             launch_attempt=1,
         ),
     )

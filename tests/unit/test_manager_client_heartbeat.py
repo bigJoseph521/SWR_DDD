@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from unittest import mock
 
-from runtime.transport.manager_client import SrmHttpManagerClient, build_manager_client
+from runtime.infrastructure.http.srm.manager_client import SrmHttpManagerClient, build_manager_client
 
 
 def _heartbeat_envelope() -> dict[str, object]:

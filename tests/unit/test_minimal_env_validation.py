@@ -12,7 +12,7 @@ from runtime.bootstrap.minimal_env_validation import (
     validate_minimal_env_from_environ,
 )
 from runtime.bootstrap.srm_env_status_report import report_minimal_env_validation_to_srm
-from runtime.transport.heartbeat import build_srm_heartbeat_body
+from runtime.infrastructure.http.srm.heartbeat import build_srm_heartbeat_body
 
 
 def test_validate_minimal_env_passes_with_runtime_id_and_srm_base_url(

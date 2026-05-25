@@ -101,6 +101,48 @@ class OrderIntentValidationError(WorkerDomainError):
         )
 
 
+ORDER_INTENT_WIRE_MAPPING_MISSING_CORRELATION_ID = "MISSING_CORRELATION_ID"
+
+ORDER_INTENT_SUBMISSION_INTERNAL_ERROR = "ORDER_INTENT_SUBMISSION_INTERNAL_ERROR"
+ORDER_INTENT_SUBMISSION_FAILED = "ORDER_INTENT_SUBMISSION_FAILED"
+ORDER_INTENT_WIRE_MAPPING_FAILED = "ORDER_INTENT_WIRE_MAPPING_FAILED"
+RISK_SERVICE_TIMEOUT = "RISK_SERVICE_TIMEOUT"
+RISK_SERVICE_UNAVAILABLE = "RISK_SERVICE_UNAVAILABLE"
+RISK_ORDER_INTENT_REJECTED = "RISK_ORDER_INTENT_REJECTED"
+
+
+class OrderIntentWireMappingError(Exception):
+    """Risk order-intent wire payload could not be built (infrastructure egress)."""
+
+    def __init__(
+        self,
+        *,
+        reason_code: str,
+        diagnostics: Mapping[str, Any] | None = None,
+    ) -> None:
+        self.reason_code = reason_code
+        self.diagnostics = dict(diagnostics or {})
+        super().__init__(reason_code)
+
+
+class OrderIntentSubmissionError(Exception):
+    """Typed order-intent submission failure (transport, policy, or configuration)."""
+
+    def __init__(
+        self,
+        *,
+        error_code: str,
+        reason_code: str,
+        diagnostics: Mapping[str, Any] | None = None,
+        retryable: bool = False,
+    ) -> None:
+        self.error_code = error_code
+        self.reason_code = reason_code
+        self.diagnostics = dict(diagnostics or {})
+        self.retryable = retryable
+        super().__init__(reason_code)
+
+
 class WorkerErrorCode(StrEnum):
     """
     Worker-owned canonical error codes.

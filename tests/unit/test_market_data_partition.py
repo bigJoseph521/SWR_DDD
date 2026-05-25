@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from runtime.integration.market_data_partition import (
+from runtime.infrastructure.redis.market_data_partition import (
     market_data_partition,
     symbol_crc32,
 )

@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 from alphovex_sdk.strategy import Strategy as AlphovexStrategy
-from runtime.bootstrap.entrypoint_loader import EntrypointLoadResult
+from runtime.infrastructure.strategy_loader.entrypoint_loader import EntrypointLoadResult
 from runtime.bootstrap.failures import (
     BootstrapStage,
     SDKContractFailure,
@@ -147,8 +147,9 @@ def test_mypy_failure_maps_to_sdk_protocol_mismatch(
         ),
     )
 
+    work_root = tmp_path / "worker-data"
     with pytest.raises(SDKContractFailure) as exc_info:
-        SdkContractValidator().validate(
+        SdkContractValidator(work_root=work_root).validate(
             _entrypoint(Strategy, details={"module_file": str(strategy_file)})
         )
 
@@ -156,6 +157,7 @@ def test_mypy_failure_maps_to_sdk_protocol_mismatch(
     assert failure.stage is BootstrapStage.SDK_VALIDATE
     assert failure.reason_code == "SDK_PROTOCOL_MISMATCH"
     assert failure.details.get("mypy_exit_code") == 1
+    assert failure.details["mypy_result_path"] == str(work_root / "mypy_result.txt")
 
 
 def test_sdk_marker_failure_keeps_mypy_results_in_details(

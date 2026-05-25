@@ -4,13 +4,13 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from runtime.transport.grpc.oms_client import OmsGrpcClient
-from runtime.transport.grpc.serializers import risk_worker_pb2
+from runtime.infrastructure.grpc.risk_order_intent_client import RiskOrderIntentGrpcClient
+from runtime.infrastructure.grpc.serializers import risk_worker_pb2
 
 
 def test_submit_cancel_order_intent_requires_core_fields() -> None:
     stub = MagicMock()
-    client = OmsGrpcClient(stub, timeout_seconds=1.0)
+    client = RiskOrderIntentGrpcClient(stub, timeout_seconds=1.0)
     with pytest.raises(ValueError, match="correlation_id"):
         client.submit_cancel_order_intent(
             {
@@ -44,7 +44,7 @@ def test_submit_cancel_order_intent_invokes_grpc_stub() -> None:
                 order_id="oms-1",
             )
 
-    client = OmsGrpcClient(_Stub(), timeout_seconds=2.5)
+    client = RiskOrderIntentGrpcClient(_Stub(), timeout_seconds=2.5)
     out = client.submit_cancel_order_intent(
         {
             "job_id": "job-1",

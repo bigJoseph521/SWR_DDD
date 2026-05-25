@@ -19,8 +19,8 @@ from runtime.bootstrap.srm_env_status_report import (
     initiate_stop_status_update,
     shutdown_swr_reason_code,
 )
-from runtime.transport.heartbeat import SRM_STATUS_SOURCE_UPDATE
-from runtime.transport.http.stop_control_server import (
+from runtime.infrastructure.http.srm.heartbeat import SRM_STATUS_SOURCE_UPDATE
+from runtime.interface.http.stop_control_server import (
     StopAlreadyInProgress,
     WorkerAlreadyStopped,
 )
@@ -276,7 +276,7 @@ def test_sigterm_ignored_when_worker_already_stopped() -> None:
 def test_lifecycle_initiate_stop_sets_shutdown_in_progress(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from runtime.application.lifecycle_service import LifecycleService
+    from runtime.application.lifecycle.lifecycle_service import LifecycleService
     from runtime.bootstrap.launch_spec import LaunchSpec
     from runtime.bootstrap.validator import LaunchSpecValidator
     from runtime.domain.worker_identity import WorkerIdentity
@@ -331,7 +331,7 @@ def test_lifecycle_initiate_stop_sets_shutdown_in_progress(
         )
 
     monkeypatch.setattr(
-        "runtime.application.lifecycle_service.initiate_stop_status_update",
+        "runtime.application.lifecycle.lifecycle_service.initiate_stop_status_update",
         _fake_initiate,
     )
 

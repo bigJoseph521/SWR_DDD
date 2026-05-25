@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import json
 
-from runtime.integration.portfolio_redis_feed import (
+from runtime.infrastructure.redis.portfolio_redis_feed import (
     parse_portfolio_balance_message,
     portfolio_update_channel,
     portfolio_update_partition,
 )
-from runtime.integration.market_data_partition import market_data_partition
+from runtime.infrastructure.redis.market_data_partition import market_data_partition
 
 
 def test_portfolio_update_partition_matches_job_id_crc32() -> None:

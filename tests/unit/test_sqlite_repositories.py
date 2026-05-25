@@ -5,9 +5,9 @@ from pathlib import Path
 
 import pytest
 from sqlalchemy.exc import IntegrityError
-from runtime.persistence.db import begin_connection, create_engine
-from runtime.persistence.migrations import apply_migrations
-from runtime.persistence.repositories import (
+from runtime.infrastructure.persistence.db import begin_connection, create_engine
+from runtime.infrastructure.persistence.migrations import apply_migrations
+from runtime.infrastructure.persistence.repositories import (
     HeartbeatObservationRecord,
     LaunchAttemptRecord,
     SQLiteHeartbeatRepository,
@@ -41,7 +41,6 @@ def _upsert_seed_instance(
             occurred_at=now,
             observed_at=now,
             correlation_id="corr-1",
-            causation_id="cause-1",
         )
     )
 
@@ -66,7 +65,6 @@ def test_upsert_read_update_and_strategy_filter(tmp_path: Path) -> None:
             occurred_at=now,
             observed_at=now,
             correlation_id="corr-2",
-            causation_id="cause-2",
         )
 
         updated = instances.get_by_runtime_id("rt-1")

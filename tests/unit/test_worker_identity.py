@@ -4,7 +4,7 @@ from dataclasses import FrozenInstanceError
 from typing import Any
 
 import pytest
-from runtime.domain.enums import RuntimeMode
+from runtime.domain.enums import WorkerMode
 from runtime.domain.errors import (
     MalformedWorkerIdentityError,
     SingleAssignmentViolationError,
@@ -17,7 +17,7 @@ def _base_identity_kwargs() -> dict[str, Any]:
         "runtime_id": "rt-100",
         "tenant_id": "tenant-1",
         "strategy_version_id": "strategy-v5",
-        "mode": RuntimeMode.PAPER,
+        "mode": WorkerMode.PAPER,
         "validated_parameter_identity": "vp-123",
         "artifact_reference": "registry://strategy/v5",
         "artifact_digest": "sha256:abcdef",

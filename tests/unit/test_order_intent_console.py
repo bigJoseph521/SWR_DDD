@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from runtime.transport.grpc.oms_client import (
+from runtime.infrastructure.grpc.risk_order_intent_client import (
     ORDER_INTENT_DISPLAY_FIELD_NAMES,
     order_intent_wire_dict_for_console,
 )

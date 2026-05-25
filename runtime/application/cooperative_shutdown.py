@@ -8,7 +8,7 @@ import threading
 from typing import Protocol
 
 from runtime.bootstrap.srm_env_status_report import KUBERNETES_TERMINATION_REASON
-from runtime.transport.http.stop_control_server import (
+from runtime.interface.http.stop_control_server import (
     StopAlreadyInProgress,
     WorkerAlreadyStopped,
 )

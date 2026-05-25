@@ -4,9 +4,9 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
-from runtime.domain.enums import RuntimeMode
-from runtime.integration.manager_gateway import ManagerGateway
-from runtime.runtime.mode_policy import get_mode_policy
+from runtime.domain.enums import WorkerMode
+from runtime.infrastructure.http.srm.manager_gateway import ManagerGateway
+from runtime.domain.policies.mode_policy import get_mode_policy
 
 
 class _FakeManagerClient:
@@ -23,7 +23,7 @@ class _Identity:
     runtime_id: str
     tenant_id: str
     strategy_version_id: str
-    mode: RuntimeMode
+    mode: WorkerMode
     launch_attempt: int
     account_id: str = "acct-1"
     trader_id: str | None = None
@@ -36,13 +36,13 @@ def _utc(second: int) -> datetime:
 def test_heartbeat_emission_is_idempotent_for_same_runtime_attempt_key() -> None:
     client = _FakeManagerClient()
     gateway = ManagerGateway(
-        get_mode_policy(RuntimeMode.PAPER),
+        get_mode_policy(WorkerMode.PAPER),
         client,
         _Identity(
             runtime_id="rt-hb-1",
             tenant_id="tenant-1",
             strategy_version_id="sv-1",
-            mode=RuntimeMode.PAPER,
+            mode=WorkerMode.PAPER,
             launch_attempt=7,
         ),
     )
@@ -59,24 +59,24 @@ def test_heartbeat_emission_is_idempotent_for_same_runtime_attempt_key() -> None
 def test_heartbeat_dedupe_is_scoped_per_launch_attempt() -> None:
     client = _FakeManagerClient()
     first = ManagerGateway(
-        get_mode_policy(RuntimeMode.LIVE),
+        get_mode_policy(WorkerMode.LIVE),
         client,
         _Identity(
             runtime_id="rt-hb-2",
             tenant_id="tenant-2",
             strategy_version_id="sv-2",
-            mode=RuntimeMode.LIVE,
+            mode=WorkerMode.LIVE,
             launch_attempt=1,
         ),
     )
     second = ManagerGateway(
-        get_mode_policy(RuntimeMode.LIVE),
+        get_mode_policy(WorkerMode.LIVE),
         client,
         _Identity(
             runtime_id="rt-hb-2",
             tenant_id="tenant-2",
             strategy_version_id="sv-2",
-            mode=RuntimeMode.LIVE,
+            mode=WorkerMode.LIVE,
             launch_attempt=2,
         ),
     )
@@ -91,13 +91,13 @@ def test_heartbeat_dedupe_is_scoped_per_launch_attempt() -> None:
 def test_supervision_unhealthy_signal_carries_reason_and_timestamps() -> None:
     client = _FakeManagerClient()
     gateway = ManagerGateway(
-        get_mode_policy(RuntimeMode.BACKTEST),
+        get_mode_policy(WorkerMode.BACKTEST),
         client,
         _Identity(
             runtime_id="rt-hb-3",
             tenant_id="tenant-3",
             strategy_version_id="sv-3",
-            mode=RuntimeMode.BACKTEST,
+            mode=WorkerMode.BACKTEST,
             launch_attempt=4,
         ),
     )

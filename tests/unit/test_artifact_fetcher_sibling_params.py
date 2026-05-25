@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from runtime.bootstrap.artifact_fetcher import LocalArtifactProvider
+from runtime.infrastructure.strategy_loader.artifact_fetcher import LocalArtifactProvider
 
 
 def test_single_file_materialize_copies_adjacent_params_yaml(tmp_path: Path) -> None:

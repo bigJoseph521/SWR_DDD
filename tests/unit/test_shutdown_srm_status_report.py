@@ -20,7 +20,7 @@ from runtime.bootstrap.srm_env_status_report import (
     resolve_shutdown_report,
     shutdown_swr_reason_code,
 )
-from runtime.transport.heartbeat import build_srm_heartbeat_body
+from runtime.infrastructure.http.srm.heartbeat import build_srm_heartbeat_body
 
 
 def test_shutdown_swr_reason_code_adds_prefix() -> None:
@@ -93,7 +93,7 @@ def test_stopped_status_unhealthy_on_error_detected() -> None:
 def test_build_body_shutdown_metadata_shape() -> None:
     from datetime import datetime, timezone
 
-    from runtime.transport.heartbeat import SRM_STATUS_SOURCE_UPDATE
+    from runtime.infrastructure.http.srm.heartbeat import SRM_STATUS_SOURCE_UPDATE
 
     body = build_srm_heartbeat_body(
         runtime_id="rt-1",

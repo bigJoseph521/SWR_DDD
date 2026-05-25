@@ -9,7 +9,7 @@ from typing import Final
 # ============================================================================
 
 
-class RuntimeMode(StrEnum):
+class WorkerMode(StrEnum):
     """
     Canonical execution modes for one worker runtime assignment
     """
@@ -17,9 +17,6 @@ class RuntimeMode(StrEnum):
     PAPER = "PAPER"
     LIVE = "LIVE"
     BACKTEST = "BACKTEST"
-
-
-WorkerMode = RuntimeMode
 
 
 class WorkerPhase(StrEnum):
@@ -31,9 +28,6 @@ class WorkerPhase(StrEnum):
     STOPPED = "STOPPED"
     FAILED = "FAILED"
     COMPLETED = "COMPLETED"
-
-
-WorkerLocalPhase = WorkerPhase
 
 
 class OrderIntentSide(StrEnum):
@@ -182,7 +176,6 @@ class ServiceTarget(StrEnum):
     STRATEGY_RUNTIME_MANAGER = "strategy-runtime-manager"
     STRATEGY_REGISTRY_SERVICE = "strategy-registry-service"
     MARKET_DATA_SERVICE = "market-data-service"
-    HISTORICAL_DATA_SERVICE = "historical-data-service"
     ORDER_MANAGEMENT_SERVICE = "order-management-service"
     BACKTEST_SERVICE = "backtest-service"
     RISK_SERVICE = "risk-service"
@@ -192,7 +185,6 @@ class DependencyAccessPattern(StrEnum):
     CONTROL_PLANE = "CONTROL_PLANE"
     INTERNAL_REPORTING = "INTERNAL_REPORTING"
     MARKET_CURRENT_STATE = "MARKET_CURRENT_STATE"
-    HISTORICAL_BOUNDED_WINDOW = "HISTORICAL_BOUNDED_WINDOW"
     PAPER_LIVE_ORDER_INTENT = "PAPER_LIVE_ORDER_INTENT"
     #: SDK / strategy order intents (``risk_worker.proto``) to risk-service hot path (all modes).
     RISK_ORDER_INTENT_EGRESS = "RISK_ORDER_INTENT_EGRESS"
@@ -201,26 +193,24 @@ class DependencyAccessPattern(StrEnum):
     BACKTEST_ORDER_INTENT = "BACKTEST_ORDER_INTENT"
 
 
-MODE_ALLOWED_SERVICE_TARGETS: Final[dict[RuntimeMode, frozenset[ServiceTarget]]] = {
-    RuntimeMode.PAPER: frozenset(
+MODE_ALLOWED_SERVICE_TARGETS: Final[dict[WorkerMode, frozenset[ServiceTarget]]] = {
+    WorkerMode.PAPER: frozenset(
         {
             ServiceTarget.STRATEGY_RUNTIME_MANAGER,
             ServiceTarget.MARKET_DATA_SERVICE,
-            ServiceTarget.HISTORICAL_DATA_SERVICE,
             ServiceTarget.ORDER_MANAGEMENT_SERVICE,
             ServiceTarget.RISK_SERVICE,
         }
     ),
-    RuntimeMode.LIVE: frozenset(
+    WorkerMode.LIVE: frozenset(
         {
             ServiceTarget.STRATEGY_RUNTIME_MANAGER,
             ServiceTarget.MARKET_DATA_SERVICE,
-            ServiceTarget.HISTORICAL_DATA_SERVICE,
             ServiceTarget.ORDER_MANAGEMENT_SERVICE,
             ServiceTarget.RISK_SERVICE,
         }
     ),
-    RuntimeMode.BACKTEST: frozenset(
+    WorkerMode.BACKTEST: frozenset(
         {
             ServiceTarget.STRATEGY_RUNTIME_MANAGER,
             ServiceTarget.BACKTEST_SERVICE,
@@ -235,7 +225,7 @@ MODE_ALLOWED_SERVICE_TARGETS: Final[dict[RuntimeMode, frozenset[ServiceTarget]]]
 # ============================================================================
 
 CANONICAL_WORKER_MODES: Final[frozenset[str]] = frozenset(
-    item.value for item in RuntimeMode
+    item.value for item in WorkerMode
 )
 
 CANONICAL_INTERNAL_PRIVILEGES: Final[frozenset[str]] = frozenset(

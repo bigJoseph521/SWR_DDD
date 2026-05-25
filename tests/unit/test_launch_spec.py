@@ -3,14 +3,14 @@ from __future__ import annotations
 from dataclasses import FrozenInstanceError
 
 import pytest
-from runtime.bootstrap.digest_validation_env import (
+from runtime.infrastructure.strategy_loader.digest_validation_env import (
     SKIP_ARTIFACT_DIGEST_VALIDATION_ENV,
 )
 from runtime.bootstrap.launch_spec import (
     LaunchSpec,
     LaunchSpecValidationError,
 )
-from runtime.domain.enums import RuntimeMode
+from runtime.domain.enums import WorkerMode
 
 
 def _valid_payload() -> dict[str, object]:
@@ -32,7 +32,7 @@ def _valid_payload() -> dict[str, object]:
 def test_launch_spec_happy_path() -> None:
     spec = LaunchSpec.from_payload(_valid_payload())
     assert spec.runtime_id == "rt-1"
-    assert spec.mode is RuntimeMode.PAPER
+    assert spec.mode is WorkerMode.PAPER
     assert spec.account_id == "acct-1"
     assert spec.trader_id is None
     assert spec.correlation_id == "corr-1"

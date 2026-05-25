@@ -7,7 +7,7 @@ import pytest
 from runtime.application.dependency_container import (
     build_dependency_container,
 )
-from runtime.config.settings import load_settings_from_bundle_dict
+from runtime.infrastructure.config.settings import load_settings_from_bundle_dict
 from runtime.domain.enums import WorkerPhase
 from tests.e2e._helpers import (
     FakeManagerClient,
@@ -35,7 +35,7 @@ def test_bootstrap_success_emits_worker_owned_startup_signal_only(
     container = build_dependency_container(settings, manager_client=manager)
 
     with patch(
-        "runtime.application.lifecycle_service.report_bootstrap_success_to_srm"
+        "runtime.application.lifecycle.lifecycle_service.report_bootstrap_success_to_srm"
     ) as success_report_mock:
         container.worker_app.start()
     assert container.lifecycle_service.phase is WorkerPhase.READY

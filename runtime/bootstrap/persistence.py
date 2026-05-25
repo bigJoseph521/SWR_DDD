@@ -9,7 +9,7 @@ from runtime.bootstrap.sdk_contract_validator import (
     BootstrapPipelineSuccess,
 )
 from runtime.domain.enums import WorkerEventName
-from runtime.persistence.repositories import (
+from runtime.infrastructure.persistence.repositories import (
     DiagnosticRecord,
     LaunchAttemptRecord,
     SQLiteDiagnosticRepository,
@@ -53,7 +53,6 @@ class BootstrapPersistenceCoordinator:
                 occurred_at=observed_at,
                 observed_at=observed_at,
                 correlation_id=None,
-                causation_id=None,
             )
         )
         try:
@@ -66,7 +65,6 @@ class BootstrapPersistenceCoordinator:
                     occurred_at=observed_at,
                     observed_at=observed_at,
                     correlation_id=None,
-                    causation_id=None,
                     details={"stage": "bootstrap_start"},
                 )
             )
@@ -90,7 +88,6 @@ class BootstrapPersistenceCoordinator:
             occurred_at=occurred_at,
             observed_at=observed_at,
             correlation_id=None,
-            causation_id=None,
         )
         self._attempts.mark_outcome(
             launch_spec.runtime_id,
@@ -115,7 +112,6 @@ class BootstrapPersistenceCoordinator:
                 occurred_at=occurred_at,
                 observed_at=observed_at,
                 correlation_id=None,
-                causation_id=None,
                 details=dict(failure.details),
             )
         )
@@ -131,7 +127,6 @@ class BootstrapPersistenceCoordinator:
                 occurred_at=occurred_at,
                 observed_at=observed_at,
                 correlation_id=None,
-                causation_id=None,
                 payload={
                     "stage": failure.stage.value,
                     "details": dict(failure.details),
@@ -156,7 +151,6 @@ class BootstrapPersistenceCoordinator:
             occurred_at=occurred_at,
             observed_at=observed_at,
             correlation_id=None,
-            causation_id=None,
         )
         self._attempts.mark_outcome(
             launch_spec.runtime_id,
@@ -182,7 +176,6 @@ class BootstrapPersistenceCoordinator:
                 occurred_at=occurred_at,
                 observed_at=observed_at,
                 correlation_id=None,
-                causation_id=None,
                 payload={"entrypoint": success.entrypoint.entrypoint_spec},
             )
         )

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from runtime.bootstrap.strategy_error_boundary import (
+from runtime.application.strategy_execution.strategy_error_boundary import (
     StrategyErrorBoundary,
 )
 from runtime.domain.errors import (

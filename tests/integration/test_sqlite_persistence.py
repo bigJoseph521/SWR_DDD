@@ -3,9 +3,9 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from runtime.persistence.db import begin_connection, create_engine
-from runtime.persistence.migrations import apply_migrations
-from runtime.persistence.repositories import (
+from runtime.infrastructure.persistence.db import begin_connection, create_engine
+from runtime.infrastructure.persistence.migrations import apply_migrations
+from runtime.infrastructure.persistence.repositories import (
     DiagnosticRecord,
     HeartbeatObservationRecord,
     LaunchAttemptRecord,

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 from runtime.bootstrap.launch_spec import LaunchSpecValidationError
-from runtime.config.settings import load_settings_from_bundle_dict
+from runtime.infrastructure.config.settings import load_settings_from_bundle_dict
 
 
 def _base_bundle() -> dict[str, object]:
@@ -18,6 +18,7 @@ def _base_bundle() -> dict[str, object]:
         "entrypoint": "strategy.main:Strategy",
         "artifact_digest": "sha256:abcd",
         "artifact_uri": "file:///tmp/strategy",
+        "deployment_id": "dep-test",
     }
 
 
@@ -33,6 +34,14 @@ def test_load_settings_missing_mode_reports_launch_spec_error() -> None:
     with pytest.raises(LaunchSpecValidationError) as exc_info:
         _load(data)
     assert exc_info.value.field_errors["mode"] == "required_field_missing"
+
+
+def test_load_settings_missing_deployment_id_reports_error() -> None:
+    data = dict(_base_bundle())
+    del data["deployment_id"]
+    with pytest.raises(LaunchSpecValidationError) as exc_info:
+        _load(data)
+    assert exc_info.value.field_errors["deployment_id"] == "required_field_missing"
 
 
 @pytest.mark.parametrize(
@@ -112,40 +121,6 @@ def test_load_settings_replay_ingress_trace_from_env(
         data, base_dir=Path.cwd(), print_launch_banner=False
     )
     assert s.replay_ingress_trace_payload is True
-
-
-def test_load_settings_backtest_bar_replay_interval_default(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    monkeypatch.delenv("SWR_BACKTEST_BAR_REPLAY_INTERVAL_MS", raising=False)
-    data = dict(_base_bundle())
-    s = load_settings_from_bundle_dict(
-        data, base_dir=tmp_path, print_launch_banner=False
-    )
-    assert s.backtest_bar_replay_interval_ms == 100
-
-
-def test_load_settings_backtest_bar_replay_interval_from_env(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    monkeypatch.setenv("SWR_BACKTEST_BAR_REPLAY_INTERVAL_MS", "250")
-    data = dict(_base_bundle())
-    s = load_settings_from_bundle_dict(
-        data, base_dir=tmp_path, print_launch_banner=False
-    )
-    assert s.backtest_bar_replay_interval_ms == 250
-
-
-def test_load_settings_backtest_bar_replay_interval_from_bundle(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    monkeypatch.delenv("SWR_BACKTEST_BAR_REPLAY_INTERVAL_MS", raising=False)
-    data = dict(_base_bundle())
-    data["backtest_bar_replay_interval_ms"] = 50
-    s = load_settings_from_bundle_dict(
-        data, base_dir=tmp_path, print_launch_banner=False
-    )
-    assert s.backtest_bar_replay_interval_ms == 50
 
 
 def test_load_settings_market_data_redis_from_bundle(

@@ -7,8 +7,11 @@ __pycache__/
 build/, dist/
 *.egg-info/
 *.log
-/mypy_result.txt
-/.swr-runtime/
+**/mypy_result.txt
+# Per-deployment worker SQLite/journal (default work_root = {deployment_id}/ under cwd)
+**/.swr-runtime/
+**/state_journal.sqlite
+**/state_journal.txt
 /examples
 /.hatch-data/
 .env

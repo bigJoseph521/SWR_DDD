@@ -14,7 +14,8 @@ message ContractVersion {
 // Shared identity and correlation metadata.
 message CommonMetadata {
   string correlation_id = 1;
-  string causation_id = 2;
+  reserved 2;
+  reserved "causation_id";
   string tenant_id = 3;
   string account_id = 4;
   string runtime_id = 5;

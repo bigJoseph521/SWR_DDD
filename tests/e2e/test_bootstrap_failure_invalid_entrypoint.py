@@ -9,7 +9,7 @@ from runtime.application.dependency_container import (
 )
 from runtime.bootstrap.failures import EntrypointLoadFailure
 from runtime.bootstrap.minimal_env_validation import SWR_ENTRYPOINT_INVALID
-from runtime.config.settings import load_settings_from_bundle_dict
+from runtime.infrastructure.config.settings import load_settings_from_bundle_dict
 from runtime.domain.enums import WorkerPhase
 from tests.e2e._helpers import (
     FakeManagerClient,
@@ -38,7 +38,7 @@ def test_bootstrap_failure_invalid_entrypoint_reports_srm_status_update(
     container = build_dependency_container(settings, manager_client=manager)
 
     with patch(
-        "runtime.application.lifecycle_service.report_bootstrap_failure_to_srm"
+        "runtime.application.lifecycle.lifecycle_service.report_bootstrap_failure_to_srm"
     ) as report_mock:
         with pytest.raises(EntrypointLoadFailure) as exc_info:
             container.worker_app.start()

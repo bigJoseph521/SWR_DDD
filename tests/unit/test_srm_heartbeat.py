@@ -6,8 +6,8 @@ from io import BytesIO
 from unittest import mock
 from urllib.error import HTTPError
 
-from runtime.domain.enums import RuntimeMode
-from runtime.transport.heartbeat import (
+from runtime.domain.enums import WorkerMode
+from runtime.infrastructure.http.srm.heartbeat import (
     SrmHeartbeatHttpClient,
     build_srm_heartbeat_body,
     build_srm_heartbeat_headers,
@@ -69,7 +69,7 @@ def test_srm_heartbeat_client_posts_json_without_authorization() -> None:
         "signal_type": "heartbeat",
         "identity": {
             "runtime_id": "rt-1",
-            "mode": RuntimeMode.PAPER.value,
+            "mode": WorkerMode.PAPER.value,
             "launch_attempt": 3,
         },
         "payload": {"local_state": "RUNNING", "observed_at": observed},

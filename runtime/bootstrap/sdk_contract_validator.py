@@ -10,16 +10,16 @@ from pathlib import Path
 from typing import Any, Mapping, Protocol
 
 from alphovex_sdk.strategy import Strategy as AlphovexStrategy
-import runtime.bootstrap.run_mypy_validation as mypy_validation_runner
-from runtime.bootstrap.artifact_fetcher import (
+import runtime.infrastructure.strategy_loader.run_mypy_validation as mypy_validation_runner
+from runtime.infrastructure.strategy_loader.artifact_fetcher import (
     ArtifactFetcher,
     ArtifactFetchResult,
 )
-from runtime.bootstrap.artifact_verifier import (
+from runtime.infrastructure.strategy_loader.artifact_verifier import (
     ArtifactVerificationResult,
     ArtifactVerifier,
 )
-from runtime.bootstrap.entrypoint_loader import (
+from runtime.infrastructure.strategy_loader.entrypoint_loader import (
     EntrypointLoader,
     EntrypointLoadResult,
 )
@@ -59,10 +59,12 @@ class SdkContractValidator:
         required_methods: tuple[str, ...] = (),
         required_sdk_major: int = 1,
         required_base_type: type[Any] | None = AlphovexStrategy,
+        work_root: Path | None = None,
     ) -> None:
         self._required_methods = required_methods
         self._required_sdk_major = required_sdk_major
         self._required_base_type = required_base_type
+        self._work_root = (work_root or Path.cwd()).resolve()
 
     def validate(self, entrypoint: EntrypointLoadResult) -> SdkContractValidationResult:
         candidate = entrypoint.symbol
@@ -154,7 +156,13 @@ class SdkContractValidator:
         runner = Path(mypy_validation_runner.__file__).resolve()
 
         proc = subprocess.run(
-            [sys.executable, str(runner), str(module_file)],
+            [
+                sys.executable,
+                str(runner),
+                str(module_file),
+                "--work-root",
+                str(self._work_root),
+            ],
             capture_output=True,
             text=True,
             cwd=str(module_file.parent),
@@ -165,7 +173,7 @@ class SdkContractValidator:
             "entrypoint": entrypoint.entrypoint_spec,
             "module_file": str(module_file),
             "mypy_result_path": str(
-                mypy_validation_runner.mypy_result_path_for(module_file)
+                mypy_validation_runner.mypy_result_path_for(work_root=self._work_root)
             ),
             "mypy_exit_code": proc.returncode,
             "mypy_output": output[:4000],

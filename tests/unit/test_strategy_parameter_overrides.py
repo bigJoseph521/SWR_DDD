@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from runtime.bootstrap.replay_sdk_bridge import (
+from runtime.infrastructure.sdk.replay_sdk_bridge import (
     merge_parameter_schema_with_strategy_overrides,
     strategy_parameter_overrides_from_launch_payload,
 )
-from runtime.strategy_contract.sdk_runtime_types import ParameterSchema
+from runtime.infrastructure.sdk.sdk_runtime_types import ParameterSchema
 
 
 def test_overrides_prefer_top_level_strategy_params() -> None:

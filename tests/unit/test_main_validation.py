@@ -18,15 +18,6 @@ def _import_main_with_stubs() -> Any:
     setattr(dep_mod, "build_dependency_container", lambda *args, **kwargs: None)
     sys.modules["runtime.application.dependency_container"] = dep_mod
 
-    app_mod = types.ModuleType("runtime.application.worker_control_application")
-
-    class _WorkerControlApplicationImpl:  # pragma: no cover - import stub only
-        def __init__(self, *args, **kwargs) -> None:
-            pass
-
-    setattr(app_mod, "WorkerControlApplicationImpl", _WorkerControlApplicationImpl)
-    sys.modules["runtime.application.worker_control_application"] = app_mod
-
     class _NoopManagerClient:  # pragma: no cover - import stub only
         def emit_signal(self, envelope: object) -> dict[str, object]:
             return {"accepted": False}
@@ -34,7 +25,7 @@ def _import_main_with_stubs() -> Any:
         def close(self) -> None:
             return None
 
-    manager_client_mod = types.ModuleType("runtime.transport.manager_client")
+    manager_client_mod = types.ModuleType("runtime.infrastructure.http.srm.manager_client")
     setattr(
         manager_client_mod,
         "build_manager_client",
@@ -42,17 +33,19 @@ def _import_main_with_stubs() -> Any:
     )
     setattr(manager_client_mod, "CompositeManagerSignalClient", _NoopManagerClient)
     setattr(manager_client_mod, "SrmHeartbeatHttpClient", _NoopManagerClient)
-    sys.modules["runtime.transport.manager_client"] = manager_client_mod
+    sys.modules["runtime.infrastructure.http.srm.manager_client"] = manager_client_mod
 
-    oms_mod = types.ModuleType("runtime.transport.grpc.oms_client")
-    setattr(oms_mod, "build_oms_grpc_client", lambda **kwargs: None)
-    sys.modules["runtime.transport.grpc.oms_client"] = oms_mod
+    risk_mod = types.ModuleType(
+        "runtime.infrastructure.grpc.risk_order_intent_client"
+    )
+    setattr(
+        risk_mod,
+        "build_risk_order_intent_grpc_client",
+        lambda **kwargs: None,
+    )
+    sys.modules["runtime.infrastructure.grpc.risk_order_intent_client"] = risk_mod
 
-    replay_client_mod = types.ModuleType("runtime.transport.grpc.replay_client")
-    setattr(replay_client_mod, "build_replay_grpc_client", lambda **kwargs: None)
-    sys.modules["runtime.transport.grpc.replay_client"] = replay_client_mod
-
-    replay_service_mod = types.ModuleType("runtime.transport.grpc.replay_service")
+    replay_service_mod = types.ModuleType("runtime.interface.grpc.replay_ingress_server")
 
     class _ReplayIngressServerRuntime:  # pragma: no cover - import stub only
         bind_address = "127.0.0.1:0"
@@ -72,29 +65,10 @@ def _import_main_with_stubs() -> Any:
         "build_replay_ingress_server_first_available",
         lambda *args, **kwargs: _ReplayIngressServerRuntime(),
     )
-    sys.modules["runtime.transport.grpc.replay_service"] = replay_service_mod
+    sys.modules["runtime.interface.grpc.replay_ingress_server"] = replay_service_mod
 
-    server_mod = types.ModuleType("runtime.transport.grpc.server")
-
-    class _GrpcControlRuntime:  # pragma: no cover - import stub only
-        bind_address = "127.0.0.1:50051"
-        port = 50051
-
-        def start(self) -> None:
-            return None
-
-        def stop(self, _grace_seconds: float = 0.0) -> None:
-            return None
-
-    setattr(
-        server_mod,
-        "build_grpc_server_first_available",
-        lambda *args, **kwargs: _GrpcControlRuntime(),
-    )
-    sys.modules["runtime.transport.grpc.server"] = server_mod
-
-    sys.modules.pop("runtime.main", None)
-    return importlib.import_module("runtime.main")
+    sys.modules.pop("runtime.interface.cli.main", None)
+    return importlib.import_module("runtime.interface.cli.main")
 
 
 class _RecordingManagerClient:

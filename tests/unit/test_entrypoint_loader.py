@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from runtime.bootstrap.artifact_fetcher import ArtifactFetchResult
-from runtime.bootstrap.entrypoint_loader import EntrypointLoader
+from runtime.infrastructure.strategy_loader.artifact_fetcher import ArtifactFetchResult
+from runtime.infrastructure.strategy_loader.entrypoint_loader import EntrypointLoader
 from runtime.bootstrap.failures import (
     BootstrapStage,
     EntrypointLoadFailure,

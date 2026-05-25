@@ -3,14 +3,14 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
-from runtime.bootstrap.artifact_fetcher import (
+from runtime.infrastructure.strategy_loader.artifact_fetcher import (
     ArtifactFetcher,
     ArtifactMaterialization,
     ArtifactProvider,
     ArtifactProviderAccessDeniedError,
 )
-from runtime.bootstrap.artifact_verifier import ArtifactVerifier
-from runtime.bootstrap.entrypoint_loader import EntrypointLoader
+from runtime.infrastructure.strategy_loader.artifact_verifier import ArtifactVerifier
+from runtime.infrastructure.strategy_loader.entrypoint_loader import EntrypointLoader
 from runtime.bootstrap.failures import BootstrapStage
 from runtime.bootstrap.launch_spec import LaunchSpec
 from runtime.bootstrap.persistence import (
@@ -20,9 +20,9 @@ from runtime.bootstrap.sdk_contract_validator import (
     BootstrapPipeline,
     SdkContractValidator,
 )
-from runtime.persistence.db import create_engine
-from runtime.persistence.migrations import apply_migrations
-from runtime.persistence.repositories import (
+from runtime.infrastructure.persistence.db import create_engine
+from runtime.infrastructure.persistence.migrations import apply_migrations
+from runtime.infrastructure.persistence.repositories import (
     SQLiteDiagnosticRepository,
     SQLiteLaunchAttemptRepository,
     SQLiteWorkerEventRepository,
@@ -90,13 +90,12 @@ def _build_spec(
 def _pipeline(
     tmp_path: Path, *, providers: dict[str, ArtifactProvider] | None = None
 ) -> BootstrapPipeline:
+    work_root = tmp_path / "materialized"
     return BootstrapPipeline(
-        fetcher=ArtifactFetcher(
-            work_root=tmp_path / "materialized", providers=providers
-        ),
+        fetcher=ArtifactFetcher(work_root=work_root, providers=providers),
         verifier=ArtifactVerifier(),
         entrypoint_loader=EntrypointLoader(),
-        sdk_validator=SdkContractValidator(),
+        sdk_validator=SdkContractValidator(work_root=work_root),
     )
 
 
@@ -126,14 +125,13 @@ def _pipeline_with_persistence(
         events=events,
         diagnostics=diagnostics,
     )
+    work_root = tmp_path / "materialized"
     return (
         BootstrapPipeline(
-            fetcher=ArtifactFetcher(
-                work_root=tmp_path / "materialized", providers=providers
-            ),
+            fetcher=ArtifactFetcher(work_root=work_root, providers=providers),
             verifier=ArtifactVerifier(),
             entrypoint_loader=EntrypointLoader(),
-            sdk_validator=SdkContractValidator(),
+            sdk_validator=SdkContractValidator(work_root=work_root),
             persistence=coordinator,
         ),
         instances,

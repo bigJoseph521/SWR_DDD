@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from runtime.integration.epoch_time import (
+from runtime.infrastructure.clock.epoch_time import (
     utc_datetime_to_epoch_millis,
     utc_from_epoch_millis,
     utc_from_epoch_seconds,

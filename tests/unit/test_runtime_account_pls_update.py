@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from runtime.bootstrap.replay_runtime_support import (
+from runtime.infrastructure.strategy_loader.replay_runtime_support import (
     CashBalance,
     Exposure,
     MarginState,
@@ -10,7 +10,7 @@ from runtime.bootstrap.replay_runtime_support import (
     PortfolioSnapshot,
     SnapshotPortfolioService,
 )
-from runtime.strategy_contract.runtime_account_context import RuntimeAccountContext
+from runtime.infrastructure.sdk.runtime_account_context import RuntimeAccountContext
 
 
 def test_apply_pls_balance_update_mutates_snapshot() -> None:

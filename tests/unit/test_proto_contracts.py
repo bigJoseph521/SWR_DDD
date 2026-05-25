@@ -15,8 +15,6 @@ importlib.import_module(
 Struct = importlib.import_module("google.protobuf.struct_pb2").Struct
 Timestamp = importlib.import_module("google.protobuf.timestamp_pb2").Timestamp
 
-manager_worker_pb2 = importlib.import_module("manager_worker_pb2")
-manager_worker_pb2_grpc = importlib.import_module("manager_worker_pb2_grpc")
 risk_worker_pb2 = importlib.import_module("risk_worker_pb2")
 risk_worker_pb2_grpc = importlib.import_module("risk_worker_pb2_grpc")
 replay_worker_pb2 = importlib.import_module("replay_worker_pb2")
@@ -65,14 +63,11 @@ def _to_dict(msg):
 
 
 def test_generated_proto_modules_import_cleanly():
-    assert manager_worker_pb2.DESCRIPTOR.name == "manager_worker.proto"
     assert replay_worker_pb2.DESCRIPTOR.name == "replay_worker.proto"
     assert risk_worker_pb2.DESCRIPTOR.name == "risk_worker.proto"
 
 
 def test_service_classes_exist():
-    assert hasattr(manager_worker_pb2_grpc, "WorkerControlServiceStub")
-    assert hasattr(manager_worker_pb2_grpc, "WorkerLifecycleSignalServiceStub")
     assert hasattr(replay_worker_pb2_grpc, "ReplayIngressServiceStub")
     assert hasattr(replay_worker_pb2_grpc, "ReplayLookbackServiceStub")
     assert hasattr(replay_worker_pb2_grpc, "BacktestOrderIntentServiceStub")
@@ -81,16 +76,6 @@ def test_service_classes_exist():
 
 def test_message_classes_exist():
     for module, names in [
-        (
-            manager_worker_pb2,
-            [
-                "LaunchSpec",
-                "Heartbeat",
-                "LaunchSucceeded",
-                "LaunchFailed",
-                "TerminationReported",
-            ],
-        ),
         (
             replay_worker_pb2,
             [
@@ -115,25 +100,6 @@ def test_message_classes_exist():
 
 
 def test_required_identity_and_time_fields_present_on_key_messages():
-    manager_required = {
-        "LaunchSpec": {
-            "contract",
-            "correlation_id",
-            "runtime_id",
-            "mode",
-            "entrypoint",
-            "requested_at",
-            "job_id",
-        },
-        "Heartbeat": {"contract", "event_id", "occurred_at", "payload"},
-        "LaunchSucceeded": {"contract", "event_id", "occurred_at", "payload"},
-        "LaunchFailed": {"contract", "event_id", "occurred_at", "payload"},
-        "TerminationReported": {"contract", "event_id", "occurred_at", "payload"},
-    }
-    for name, expected in manager_required.items():
-        fields = set(_field_numbers(getattr(manager_worker_pb2, name)).keys())
-        assert expected.issubset(fields), f"{name} missing fields: {expected - fields}"
-
     replay_required = {
         "ReplayContext": {"replay", "events", "simulated_time", "end_of_stream"},
         "ReplayLookbackRequest": {
@@ -157,7 +123,7 @@ def test_required_identity_and_time_fields_present_on_key_messages():
         fields = set(_field_numbers(getattr(replay_worker_pb2, name)).keys())
         assert expected.issubset(fields), f"{name} missing fields: {expected - fields}"
 
-    oms_required = {
+    risk_required = {
         "OrderIntent": {
             "correlation_id",
             "account_id",
@@ -180,65 +146,9 @@ def test_required_identity_and_time_fields_present_on_key_messages():
             "mode",
         },
     }
-    for name, expected in oms_required.items():
+    for name, expected in risk_required.items():
         fields = set(_field_numbers(getattr(risk_worker_pb2, name)).keys())
         assert expected.issubset(fields), f"{name} missing fields: {expected - fields}"
-
-
-def test_launch_spec_round_trip():
-    msg = manager_worker_pb2.LaunchSpec(
-        contract=manager_worker_pb2.ContractVersion(
-            schema_version=1, compatibility_note="initial freeze"
-        ),
-        correlation_id="corr-1",
-        causation_id="cause-0",
-        tenant_id="tenant-a",
-        account_id="acct-1",
-        runtime_id="rt-123",
-        worker_identity="worker-local-1",
-        launch_attempt=2,
-        strategy_version_id="sv-20260327",
-        job_id="job-bt-1",
-        deployment_id="dep-1",
-        mode=manager_worker_pb2.PAPER,
-        trader_id="trader-7",
-        validated_parameter_identity="vp-abc",
-        parameter_hash="sha256:def",
-        artifact_reference="strategy-image:v2",
-        artifact_uri="registry.local/strategy:v2",
-        artifact_digest="sha256:1234",
-        entrypoint="my_strategy.main:run",
-        sandbox_profile="restricted",
-        requested_by="manager",
-        requested_at=_ts("2026-03-27T09:00:00Z"),
-    )
-    out = manager_worker_pb2.LaunchSpec()
-    out.ParseFromString(msg.SerializeToString())
-    assert out == msg
-
-
-def test_heartbeat_round_trip():
-    hb_payload = Struct()
-    hb_payload.update({"local_state": "RUNNING"})
-    msg = manager_worker_pb2.Heartbeat(
-        contract=manager_worker_pb2.ContractVersion(schema_version=1),
-        event_id="evt-hb-1",
-        event_name="runtime.heartbeat",
-        event_version=1,
-        producer="strategy-worker-runtime",
-        correlation_id="corr-hb",
-        tenant_id="tenant-a",
-        account_id="acct-1",
-        runtime_id="rt-123",
-        worker_identity="worker-local-1",
-        launch_attempt=2,
-        strategy_version_id="sv-20260327",
-        occurred_at=_ts("2026-03-27T09:05:00Z"),
-        payload=hb_payload,
-    )
-    out = manager_worker_pb2.Heartbeat()
-    out.ParseFromString(msg.SerializeToString())
-    assert out == msg
 
 
 def test_replay_context_round_trip():
@@ -287,7 +197,6 @@ def test_replay_lookback_response_round_trip():
             contract=replay_worker_pb2.ContractVersion(schema_version=1),
             meta=replay_worker_pb2.CommonMetadata(
                 correlation_id="corr-lb",
-                causation_id="cause-lb",
                 tenant_id="tenant-a",
                 runtime_id="rt-123",
                 launch_attempt=2,
@@ -322,7 +231,6 @@ def test_replay_lookback_response_round_trip():
 
 def test_order_intent_round_trip():
     ext = risk_worker_pb2.CommonMetadata(
-        causation_id="cause-oms-1",
         tenant_id="tenant-a",
         runtime_id="rt-123",
         worker_identity="worker-local-1",
@@ -371,120 +279,6 @@ def test_order_intent_ack_round_trip():
     out = risk_worker_pb2.OrderIntentAck()
     out.ParseFromString(msg.SerializeToString())
     assert out == msg
-
-
-def test_golden_launch_spec_compatibility_and_field_numbers():
-    golden = {
-        "contract": {"schemaVersion": 1, "compatibilityNote": "swr-102 freeze"},
-        "correlationId": "corr-100",
-        "causationId": "cause-99",
-        "tenantId": "tenant-a",
-        "accountId": "acct-1",
-        "runtimeId": "rt-xyz",
-        "workerIdentity": "worker-01",
-        "launchAttempt": 1,
-        "strategyVersionId": "sv-42",
-        "jobId": "job-abc",
-        "deploymentId": "dep-main",
-        "mode": "PAPER",
-        "traderId": "trader-1",
-        "validatedParameterIdentity": "vp-1",
-        "parameterHash": "sha256:abcd",
-        "artifactReference": "artifact-ref",
-        "artifactUri": "registry.local/ref",
-        "artifactDigest": "sha256:ffff",
-        "entrypoint": "pkg.main:run",
-        "sandboxProfile": "restricted",
-        "requestedBy": "runtime-manager",
-        "requestedAt": "2026-03-27T09:00:00Z",
-    }
-    msg = json_format.ParseDict(golden, manager_worker_pb2.LaunchSpec())
-    raw = msg.SerializeToString()
-    golden_b64 = base64.b64encode(raw).decode("ascii")
-    reparsed = manager_worker_pb2.LaunchSpec()
-    reparsed.ParseFromString(base64.b64decode(golden_b64))
-    assert reparsed == msg
-
-    raw_with_unknown = _append_unknown_string_field(
-        raw, field_number=99, value="future-additive"
-    )
-    forward_safe = manager_worker_pb2.LaunchSpec()
-    forward_safe.ParseFromString(raw_with_unknown)
-    assert _to_dict(forward_safe) == _to_dict(msg)
-
-    assert _field_numbers(manager_worker_pb2.LaunchSpec) == {
-        "contract": 1,
-        "correlation_id": 2,
-        "causation_id": 3,
-        "tenant_id": 4,
-        "account_id": 5,
-        "runtime_id": 6,
-        "worker_identity": 7,
-        "launch_attempt": 8,
-        "strategy_version_id": 9,
-        "job_id": 10,
-        "deployment_id": 11,
-        "mode": 12,
-        "trader_id": 13,
-        "validated_parameter_identity": 14,
-        "parameter_hash": 15,
-        "artifact_reference": 16,
-        "artifact_uri": 17,
-        "artifact_digest": 18,
-        "entrypoint": 19,
-        "sandbox_profile": 20,
-        "requested_by": 21,
-        "requested_at": 22,
-    }
-
-
-def test_golden_heartbeat_compatibility_and_field_numbers():
-    golden = {
-        "contract": {"schemaVersion": 1},
-        "eventId": "evt-hb",
-        "eventName": "runtime.heartbeat",
-        "eventVersion": 1,
-        "producer": "strategy-worker-runtime",
-        "correlationId": "corr-hb",
-        "tenantId": "tenant-a",
-        "accountId": "acct-1",
-        "runtimeId": "rt-xyz",
-        "workerIdentity": "worker-01",
-        "launchAttempt": 1,
-        "strategyVersionId": "sv-42",
-        "occurredAt": "2026-03-27T09:10:00Z",
-        "payload": {"localState": "RUNNING"},
-    }
-    msg = json_format.ParseDict(golden, manager_worker_pb2.Heartbeat())
-    raw = msg.SerializeToString()
-    reparsed = manager_worker_pb2.Heartbeat()
-    reparsed.ParseFromString(raw)
-    assert reparsed == msg
-
-    raw_with_unknown = _append_unknown_string_field(
-        raw, field_number=88, value="additive"
-    )
-    forward_safe = manager_worker_pb2.Heartbeat()
-    forward_safe.ParseFromString(raw_with_unknown)
-    assert _to_dict(forward_safe) == _to_dict(msg)
-
-    assert _field_numbers(manager_worker_pb2.Heartbeat) == {
-        "contract": 1,
-        "event_id": 2,
-        "event_name": 3,
-        "event_version": 4,
-        "producer": 5,
-        "correlation_id": 6,
-        "causation_id": 7,
-        "tenant_id": 8,
-        "account_id": 9,
-        "runtime_id": 10,
-        "worker_identity": 11,
-        "launch_attempt": 12,
-        "strategy_version_id": 13,
-        "occurred_at": 14,
-        "payload": 15,
-    }
 
 
 def test_golden_replay_context_compatibility_and_field_numbers():
@@ -553,7 +347,7 @@ def test_golden_order_intent_compatibility_and_field_numbers():
         "timeInForce": "GTC",
         "idempotencyKey": "idem-123",
         "requestedAt": "2026-03-27T09:10:00Z",
-        "orderIntentId": 7,
+        "orderIntentId": "550e8400-e29b-41d4-a716-446655440000",
         "symbol": "AAPL",
     }
     msg = json_format.ParseDict(golden, risk_worker_pb2.OrderIntent())
@@ -588,26 +382,6 @@ def test_golden_order_intent_compatibility_and_field_numbers():
         "symbol": 18,
         "created_at": 19,
     }
-
-
-def test_boundary_worker_signals_are_execution_plane_only():
-    # Worker signal schema includes launch/heartbeat/degraded/failure/termination
-    # and intentionally excludes manager-owned runtime.started truth payloads.
-    assert not hasattr(manager_worker_pb2, "RuntimeStarted")
-    signal_methods = {
-        "ReportLaunchSucceeded",
-        "ReportLaunchFailed",
-        "ReportHeartbeat",
-        "ReportDegraded",
-        "ReportTermination",
-    }
-    defined = {
-        m.name
-        for m in manager_worker_pb2.DESCRIPTOR.services_by_name[
-            "WorkerLifecycleSignalService"
-        ].methods
-    }
-    assert signal_methods == defined
 
 
 def test_boundary_backtest_does_not_use_worker_intent_contract():
@@ -646,15 +420,9 @@ def test_boundary_risk_worker_order_intent_has_scope_and_idempotency():
         "account_id",
         "runtime_id",
         "correlation_id",
-        "causation_id",
         "job_id",
     }.issubset(meta_fields)
     assert "backtest_job_id" not in meta_fields
     replay_meta = set(_field_numbers(replay_worker_pb2.CommonMetadata).keys())
     assert "job_id" in replay_meta
     assert "backtest_job_id" not in replay_meta
-
-
-def test_boundary_lifecycle_ordering_domain_present():
-    fields = set(_field_numbers(manager_worker_pb2.LaunchSpec).keys())
-    assert {"runtime_id", "launch_attempt", "job_id"}.issubset(fields)

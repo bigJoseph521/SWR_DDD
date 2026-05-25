@@ -6,7 +6,7 @@ from pathlib import Path
 from runtime.application.dependency_container import (
     build_dependency_container,
 )
-from runtime.config.settings import load_settings_from_bundle_dict
+from runtime.infrastructure.config.settings import load_settings_from_bundle_dict
 from tests.e2e._helpers import (
     FakeManagerClient,
     build_bundle_dict,

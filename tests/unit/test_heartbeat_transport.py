@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from runtime.transport.heartbeat import (
+from runtime.infrastructure.http.srm.heartbeat import (
     SRM_STATUS_SOURCE_HEARTBEAT,
     SRM_STATUS_SOURCE_UPDATE,
     build_srm_heartbeat_body,

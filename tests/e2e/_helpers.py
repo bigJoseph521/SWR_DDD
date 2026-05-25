@@ -23,14 +23,6 @@ class FakeOmsClient:
         return {"accepted": True, "id": payload.get("idempotency_key")}
 
 
-class FakeReplayClient:
-    def __init__(self) -> None:
-        self.ticks: list[dict[str, Any]] = []
-
-    def ingest_replay_tick(self, payload: dict[str, Any]) -> None:
-        self.ticks.append(dict(payload))
-
-
 def write_strategy_package(
     base: Path,
     *,

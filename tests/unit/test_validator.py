@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 from runtime.bootstrap.validator import LaunchSpecValidator
-from runtime.domain.enums import RuntimeMode
+from runtime.domain.enums import WorkerMode
 from runtime.domain.errors import (
     RuntimeStartValidationFailedError,
     SharedBoundaryErrorCode,
@@ -29,7 +29,7 @@ def test_validate_happy_path_returns_launch_spec() -> None:
     validator = LaunchSpecValidator()
     spec = validator.validate(_valid_payload())
     assert spec.runtime_id == "rt-1"
-    assert spec.mode is RuntimeMode.PAPER
+    assert spec.mode is WorkerMode.PAPER
 
 
 def test_validation_errors_map_to_runtime_start_validation_failed() -> None:

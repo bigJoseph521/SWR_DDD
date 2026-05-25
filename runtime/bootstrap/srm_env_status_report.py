@@ -34,7 +34,7 @@ from runtime.domain.errors import (
     RUNTIME_WORKER_REASON_CODES,
     normalize_runtime_reason_code,
 )
-from runtime.transport.heartbeat import (
+from runtime.infrastructure.http.srm.heartbeat import (
     SRM_STATUS_SOURCE_UPDATE,
     build_srm_heartbeat_body,
     post_srm_runtime_status,

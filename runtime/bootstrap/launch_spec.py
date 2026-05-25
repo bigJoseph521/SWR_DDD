@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping, cast
 
-from runtime.bootstrap.digest_validation_env import skip_artifact_digest_validation
-from runtime.domain.enums import RuntimeMode
+from runtime.infrastructure.strategy_loader.digest_validation_env import skip_artifact_digest_validation
+from runtime.domain.enums import WorkerMode
 
 
 def _is_int(value: object) -> bool:
@@ -50,7 +50,7 @@ class LaunchSpec:
     runtime_id: str
     tenant_id: str
     strategy_version_id: str
-    mode: RuntimeMode
+    mode: WorkerMode
     launch_attempt: int
     artifact_uri: str
     entrypoint: str
@@ -93,6 +93,7 @@ class LaunchSpec:
             "validated_parameter_identity",
             "parameter_hash",
             "job_id",
+            "deployment_id",
             "ts_start",
             "ts_end",
             "symbol",
@@ -273,16 +274,16 @@ class LaunchSpec:
         mode_raw = payload.get("mode")
         if mode_raw is None:
             field_errors["mode"] = "required_field_missing"
-            mode = RuntimeMode.PAPER
+            mode = WorkerMode.PAPER
         elif not isinstance(mode_raw, str):
             field_errors["mode"] = "wrong_type_expected_string"
-            mode = RuntimeMode.PAPER
+            mode = WorkerMode.PAPER
         else:
             try:
-                mode = RuntimeMode(mode_raw)
+                mode = WorkerMode(mode_raw)
             except ValueError:
                 field_errors["mode"] = f"invalid_mode:{mode_raw}"
-                mode = RuntimeMode.PAPER
+                mode = WorkerMode.PAPER
 
         launch_attempt_raw = payload.get("launch_attempt")
         if launch_attempt_raw is None:
@@ -296,13 +297,13 @@ class LaunchSpec:
             if launch_attempt < 1:
                 field_errors["launch_attempt"] = "must_be_greater_or_equal_to_1"
 
-        if mode is not RuntimeMode.BACKTEST and (
+        if mode is not WorkerMode.BACKTEST and (
             ts_start is not None or ts_end is not None
         ):
             field_errors["parameters"] = (
                 "ts_start_ts_end_only_allowed_for_backtest_mode"
             )
-        if mode is RuntimeMode.BACKTEST and (ts_start is None or ts_end is None):
+        if mode is WorkerMode.BACKTEST and (ts_start is None or ts_end is None):
             field_errors["parameters"] = (
                 "ts_start_and_ts_end_required_for_backtest_mode"
             )

@@ -4,9 +4,9 @@ import hashlib
 from pathlib import Path
 
 import pytest
-from runtime.bootstrap.artifact_fetcher import ArtifactFetchResult
-from runtime.bootstrap.artifact_verifier import ArtifactVerifier
-from runtime.bootstrap.digest_validation_env import (
+from runtime.infrastructure.strategy_loader.artifact_fetcher import ArtifactFetchResult
+from runtime.infrastructure.strategy_loader.artifact_verifier import ArtifactVerifier
+from runtime.infrastructure.strategy_loader.digest_validation_env import (
     SKIP_ARTIFACT_DIGEST_VALIDATION_ENV,
 )
 

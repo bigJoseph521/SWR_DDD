@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from runtime.bootstrap.strategy_adapter import StrategyAdapter
+from runtime.application.strategy_execution.strategy_adapter import StrategyAdapter
 
 
 def test_on_event_ok_when_strategy_has_no_on_event_hook() -> None:

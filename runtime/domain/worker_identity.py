@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from runtime.domain.enums import RuntimeMode
+from runtime.domain.enums import WorkerMode
 from runtime.domain.errors import (
     MalformedWorkerIdentityError,
     SingleAssignmentViolationError,
@@ -36,7 +36,7 @@ class WorkerIdentity:
     runtime_id: str
     tenant_id: str
     strategy_version_id: str
-    mode: RuntimeMode
+    mode: WorkerMode
     trader_id: str | None = None
     account_id: str | None = None
     validated_parameter_identity: str | None = None
@@ -45,6 +45,7 @@ class WorkerIdentity:
     artifact_digest: str | None = None
     entrypoint: str = ""
     launch_attempt: int = 1
+    correlation_id: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -86,6 +87,11 @@ class WorkerIdentity:
         )
         object.__setattr__(
             self,
+            "correlation_id",
+            _normalize_optional(self.correlation_id, "correlation_id"),
+        )
+        object.__setattr__(
+            self,
             "artifact_reference",
             _normalize_optional(self.artifact_reference, "artifact_reference"),
         )
@@ -98,7 +104,7 @@ class WorkerIdentity:
         mode = self.mode
         if isinstance(mode, str):
             try:
-                mode = RuntimeMode(mode)
+                mode = WorkerMode(mode)
             except ValueError as exc:
                 raise MalformedWorkerIdentityError(
                     field_name="mode",
@@ -133,6 +139,7 @@ class WorkerIdentity:
             "artifact_digest": self.artifact_digest,
             "entrypoint": self.entrypoint,
             "launch_attempt": self.launch_attempt,
+            "correlation_id": self.correlation_id,
         }
 
     @property

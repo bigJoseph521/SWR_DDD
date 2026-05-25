@@ -4,10 +4,10 @@ from datetime import datetime, timezone
 from typing import Any
 
 import pytest
-from runtime.domain.enums import RuntimeMode
+from runtime.domain.enums import WorkerMode
 from runtime.domain.worker_identity import WorkerIdentity
-from runtime.integration.manager_gateway import ManagerGateway
-from runtime.runtime.mode_policy import get_mode_policy
+from runtime.infrastructure.http.srm.manager_gateway import ManagerGateway
+from runtime.domain.policies.mode_policy import get_mode_policy
 
 
 class _FakeManagerClient:
@@ -19,7 +19,7 @@ class _FakeManagerClient:
         return {"accepted": True, "signal_type": payload["signal_type"]}
 
 
-def _identity(mode: RuntimeMode) -> WorkerIdentity:
+def _identity(mode: WorkerMode) -> WorkerIdentity:
     return WorkerIdentity(
         runtime_id=f"rt-{mode.value.lower()}",
         tenant_id="tenant-1",
@@ -41,7 +41,7 @@ def _utc(second: int) -> datetime:
 def test_all_signals_carry_runtime_identity_and_mode() -> None:
     client = _FakeManagerClient()
     gateway = ManagerGateway(
-        get_mode_policy(RuntimeMode.PAPER), client, _identity(RuntimeMode.PAPER)
+        get_mode_policy(WorkerMode.PAPER), client, _identity(WorkerMode.PAPER)
     )
 
     gateway.emit_bootstrap_succeeded(
@@ -72,14 +72,14 @@ def test_all_signals_carry_runtime_identity_and_mode() -> None:
         assert identity["tenant_id"] == "tenant-1"
         assert identity["account_id"] == "acct-1"
         assert identity["strategy_version_id"] == "sv-1"
-        assert identity["mode"] == RuntimeMode.PAPER.value
+        assert identity["mode"] == WorkerMode.PAPER.value
         assert identity["launch_attempt"] == 3
 
 
 def test_duplicate_heartbeat_is_idempotent_on_worker_side() -> None:
     client = _FakeManagerClient()
     gateway = ManagerGateway(
-        get_mode_policy(RuntimeMode.LIVE), client, _identity(RuntimeMode.LIVE)
+        get_mode_policy(WorkerMode.LIVE), client, _identity(WorkerMode.LIVE)
     )
 
     gateway.emit_heartbeat(local_state="RUNNING", observed_at=_utc(2))
@@ -90,9 +90,9 @@ def test_duplicate_heartbeat_is_idempotent_on_worker_side() -> None:
 
 
 @pytest.mark.parametrize(
-    "mode", [RuntimeMode.PAPER, RuntimeMode.LIVE, RuntimeMode.BACKTEST]
+    "mode", [WorkerMode.PAPER, WorkerMode.LIVE, WorkerMode.BACKTEST]
 )
-def test_all_modes_can_emit_manager_supervision_signals(mode: RuntimeMode) -> None:
+def test_all_modes_can_emit_manager_supervision_signals(mode: WorkerMode) -> None:
     client = _FakeManagerClient()
     gateway = ManagerGateway(get_mode_policy(mode), client, _identity(mode))
 
@@ -110,9 +110,9 @@ def test_all_modes_can_emit_manager_supervision_signals(mode: RuntimeMode) -> No
 
 def test_gateway_exposes_source_signal_methods_only() -> None:
     gateway = ManagerGateway(
-        get_mode_policy(RuntimeMode.BACKTEST),
+        get_mode_policy(WorkerMode.BACKTEST),
         _FakeManagerClient(),
-        _identity(RuntimeMode.BACKTEST),
+        _identity(WorkerMode.BACKTEST),
     )
 
     assert callable(getattr(gateway, "emit_bootstrap_succeeded"))

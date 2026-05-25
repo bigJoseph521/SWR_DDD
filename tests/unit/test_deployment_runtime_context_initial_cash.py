@@ -3,19 +3,19 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 
-from runtime.bootstrap.deployment_runtime_context_bootstrap import (
+from runtime.infrastructure.strategy_loader.deployment_runtime_context_bootstrap import (
     worker_bundle_dict_from_runtime_context_response,
 )
 from runtime.bootstrap.launch_spec import LaunchSpec
-from runtime.bootstrap.replay_sdk_bridge import (
+from runtime.infrastructure.sdk.replay_sdk_bridge import (
     _seed_cash_from_launch_payload,
     build_replay_sdk_bridge,
 )
-from runtime.bootstrap.strategy_bundle_loader import raw_dict_to_launch_payload
-from runtime.domain.enums import RuntimeMode
+from runtime.infrastructure.strategy_loader.strategy_bundle_loader import raw_dict_to_launch_payload
+from runtime.domain.enums import WorkerMode
 from runtime.domain.worker_identity import WorkerIdentity
-from runtime.integration.clock import SimulatedClock
-from runtime.strategy_contract.sdk_runtime_types import (
+from runtime.infrastructure.clock.clock import SimulatedClock
+from runtime.infrastructure.sdk.sdk_runtime_types import (
     AssetClass,
     ParameterSchema,
     StrategyMetadata,
@@ -65,6 +65,7 @@ def test_raw_dict_to_launch_payload_preserves_initial_cash() -> None:
             "artifact_uri": "file:///tmp/x.zip",
             "artifact_digest": "sha256:00",
             "job_id": "dep-1",
+            "deployment_id": "dep-1",
             "initial_cash": {"amount": "900.00", "currency": "USD"},
         },
         base_dir=Path("/tmp"),
@@ -82,6 +83,7 @@ def test_build_replay_sdk_bridge_seeds_account_cash_balance() -> None:
             "artifact_uri": "file:///tmp/x.zip",
             "artifact_digest": "sha256:00",
             "job_id": "dep-1",
+            "deployment_id": "dep-1",
             "account_id": "acct-1",
             "launch_attempt": 1,
             "initial_cash": {"amount": "900.00", "currency": "USD"},
@@ -116,7 +118,7 @@ def test_build_replay_sdk_bridge_seeds_account_cash_balance() -> None:
             runtime_id="rt-1",
             tenant_id="t1",
             strategy_version_id="sv-1",
-            mode=RuntimeMode.PAPER,
+            mode=WorkerMode.PAPER,
             account_id="acct-1",
             artifact_uri="file:///tmp/x.zip",
             entrypoint="s:Strategy",

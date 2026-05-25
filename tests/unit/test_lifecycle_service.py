@@ -11,12 +11,12 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
-from runtime.application.lifecycle_service import LifecycleService
-from runtime.bootstrap.artifact_fetcher import ArtifactFetchResult
-from runtime.bootstrap.artifact_verifier import (
+from runtime.application.lifecycle.lifecycle_service import LifecycleService
+from runtime.infrastructure.strategy_loader.artifact_fetcher import ArtifactFetchResult
+from runtime.infrastructure.strategy_loader.artifact_verifier import (
     ArtifactVerificationResult,
 )
-from runtime.bootstrap.entrypoint_loader import EntrypointLoadResult
+from runtime.infrastructure.strategy_loader.entrypoint_loader import EntrypointLoadResult
 from runtime.bootstrap.failures import (
     ArtifactFetchFailure,
     BootstrapFailure,
@@ -38,18 +38,18 @@ from runtime.bootstrap.strategy_instance_manager import (
     StrategyInstanceManager,
 )
 from runtime.bootstrap.validator import LaunchSpecValidator
-from runtime.domain.enums import RuntimeMode, WorkerPhase
+from runtime.domain.enums import WorkerMode, WorkerPhase
 from runtime.domain.worker_identity import WorkerIdentity
-from runtime.events.dedupe import LifecycleSignalDedupe
-from runtime.integration.clock import SimulatedClock, SystemClock
-from runtime.integration.manager_gateway import ManagerGateway
-from runtime.integration.replay_gateway import ReplayGateway
-from runtime.observability.logger import (
+from runtime.domain.events.dedupe import LifecycleSignalDedupe
+from runtime.infrastructure.clock.clock import SimulatedClock, SystemClock
+from runtime.infrastructure.http.srm.manager_gateway import ManagerGateway
+from runtime.infrastructure.grpc.replay.replay_gateway import ReplayGateway
+from runtime.infrastructure.observability.logger import (
     RuntimeLogContext,
     bind_runtime_context,
 )
-from runtime.runtime.dependencies import RuntimeDependencies
-from runtime.runtime.mode_policy import get_mode_policy
+from runtime.application.runtime_dependencies import RuntimeDependencies
+from runtime.domain.policies.mode_policy import get_mode_policy
 
 
 class _CaptureHandler(logging.Handler):
@@ -179,7 +179,7 @@ def _runtime_dependencies(
             _identity(spec),
             dedupe=LifecycleSignalDedupe(),
         ),
-        oms=None,
+        risk_order_intent=None,
         replay=None,
     )
 
@@ -214,12 +214,6 @@ def _bootstrap_success(symbol: object) -> BootstrapPipelineResult:
     )
 
 
-def _historical_pb2_module():
-    root = Path(__file__).resolve().parents[2] / "protos" / "generated"
-    sys.path.insert(0, str(root))
-    return importlib.import_module("historical_data_pb2")
-
-
 def test_should_stop_for_completed_backtest_job_after_end_of_stream() -> None:
     payload = _launch_payload("BACKTEST")
     spec = LaunchSpec.from_payload(payload)
@@ -227,7 +221,7 @@ def test_should_stop_for_completed_backtest_job_after_end_of_stream() -> None:
     handler = _CaptureHandler()
     clock = SimulatedClock()
     replay = ReplayGateway(
-        get_mode_policy(RuntimeMode.BACKTEST), object(), simulated_clock=clock
+        get_mode_policy(WorkerMode.BACKTEST), simulated_clock=clock
     )
 
     def _deps() -> RuntimeDependencies:
@@ -239,7 +233,7 @@ def test_should_stop_for_completed_backtest_job_after_end_of_stream() -> None:
                 _identity(spec),
                 dedupe=LifecycleSignalDedupe(),
             ),
-            oms=None,
+            risk_order_intent=None,
             replay=replay,
         )
 
@@ -270,95 +264,6 @@ def test_should_stop_for_completed_backtest_job_after_end_of_stream() -> None:
             "end_of_stream": True,
         }
     )
-    assert lifecycle.should_stop_for_completed_backtest_job() is True
-
-
-def test_should_stop_for_completed_backtest_job_after_historical_window_exhausted() -> (
-    None
-):
-    """Historical driver marks replay complete when all bars in ts_start..ts_end are consumed."""
-    h = _historical_pb2_module()
-    bar = h.HistoricalBar(
-        instrument_id=1,
-        time_utc="2020-01-01 12:00:00+00",
-        open=1.0,
-        high=1.0,
-        low=1.0,
-        close=1.0,
-        volume=1,
-    )
-    resp = MagicMock()
-    resp.bars = [bar]
-    meta = MagicMock()
-    meta.has_more = False
-    meta.next_cursor = ""
-    resp.metadata = meta
-
-    hist_client = MagicMock()
-    hist_client.query_historical_data.return_value = resp
-
-    payload = _launch_payload("BACKTEST")
-    spec = LaunchSpec.from_payload(payload)
-    manager_client = _FakeManagerClient()
-    handler = _CaptureHandler()
-    clock = SimulatedClock()
-    lifecycle_box: list[LifecycleService | None] = [None]
-
-    def _deps() -> RuntimeDependencies:
-        ls = lifecycle_box[0]
-        return RuntimeDependencies(
-            clock=clock,
-            manager=ManagerGateway(
-                get_mode_policy(spec.mode),
-                manager_client,
-                _identity(spec),
-                dedupe=LifecycleSignalDedupe(),
-            ),
-            oms=None,
-            replay=ReplayGateway(
-                get_mode_policy(RuntimeMode.BACKTEST),
-                object(),
-                simulated_clock=clock,
-                on_first_data=(ls.mark_first_data_received if ls is not None else None),
-            ),
-        )
-
-    class _Strategy:
-        def run(self, context: object) -> object:
-            return context
-
-    lifecycle = LifecycleService(
-        launch_spec=spec,
-        launch_payload=payload,
-        worker_identity=_identity(spec),
-        launch_spec_validator=LaunchSpecValidator(),
-        bootstrap_pipeline=_PipelineStub(_bootstrap_success(_Strategy)),
-        log_binder=_logger_binder(spec, handler),
-        runtime_dependencies_initializer=_deps,
-        strategy_instance_manager=StrategyInstanceManager(),
-        periodic_jobs=_PeriodicJobs(),
-        diagnostic_flusher=_DiagnosticFlusher(),
-        closeables=(manager_client,),
-        worker_runtime_settings=SimpleNamespace(
-            historical_data_grpc_target="127.0.0.1:9",
-            backtest_symbol="SPY",
-            replay_bar_timeframe="1m",
-            historical_bars_page_size=50,
-            backtest_bar_replay_interval_ms=0,
-            oms_correlation_id="",
-            replay_session_id="",
-            disable_order_intent_grpc=False,
-        ),
-        historical_data_client=hist_client,
-    )
-    lifecycle_box[0] = lifecycle
-    lifecycle.start()
-    lifecycle.run()
-    thread = lifecycle._hds_feed_thread
-    assert thread is not None
-    thread.join(timeout=15.0)
-    assert thread.is_alive() is False
-    assert lifecycle.backtest_replay_complete is True
     assert lifecycle.should_stop_for_completed_backtest_job() is True
 
 
@@ -434,12 +339,12 @@ def test_startup_and_shutdown_run_in_exact_order(
     )
 
     with patch(
-        "runtime.application.lifecycle_service.report_bootstrap_success_to_srm"
+        "runtime.application.lifecycle.lifecycle_service.report_bootstrap_success_to_srm"
     ) as success_report_mock:
         lifecycle.start()
     success_report_mock.assert_called_once()
     with patch(
-        "runtime.application.lifecycle_service.report_final_shutdown_to_srm"
+        "runtime.application.lifecycle.lifecycle_service.report_final_shutdown_to_srm"
     ) as final_mock:
         stopped = lifecycle.stop()
     final_mock.assert_called_once()
@@ -463,7 +368,6 @@ def test_startup_and_shutdown_run_in_exact_order(
     assert lifecycle.shutdown_steps == (
         "stop_live_market_data_redis_feed",
         "stop_portfolio_update_redis_feed",
-        "stop_historical_backtest_feed",
         "stop_heartbeat_periodic_jobs",
         "stop_accepting_new_work",
         "stop_strategy_loop",
@@ -484,7 +388,7 @@ def test_backtest_runtime_job_completed_stop_sets_phase_completed() -> None:
     handler = _CaptureHandler()
     clock = SimulatedClock()
     replay = ReplayGateway(
-        get_mode_policy(RuntimeMode.BACKTEST), object(), simulated_clock=clock
+        get_mode_policy(WorkerMode.BACKTEST), simulated_clock=clock
     )
 
     def _deps() -> RuntimeDependencies:
@@ -496,7 +400,7 @@ def test_backtest_runtime_job_completed_stop_sets_phase_completed() -> None:
                 _identity(spec),
                 dedupe=LifecycleSignalDedupe(),
             ),
-            oms=None,
+            risk_order_intent=None,
             replay=replay,
         )
 
@@ -664,7 +568,7 @@ def test_startup_aborts_for_bootstrap_failures(
     )
 
     with patch(
-        "runtime.application.lifecycle_service.report_bootstrap_failure_to_srm"
+        "runtime.application.lifecycle.lifecycle_service.report_bootstrap_failure_to_srm"
     ) as report_mock:
         with pytest.raises(type(failure)):
             lifecycle.start()
@@ -883,9 +787,9 @@ def test_manager_stop_checkpoint_uses_last_handled_market_timestamp_in_backtest(
     manager_client = _FakeManagerClient()
     handler = _CaptureHandler()
     clock = SimulatedClock()
-    replay_client = object()
+    clock = SimulatedClock()
     replay = ReplayGateway(
-        get_mode_policy(RuntimeMode.BACKTEST), replay_client, simulated_clock=clock
+        get_mode_policy(WorkerMode.BACKTEST), simulated_clock=clock
     )
     state_journal = MagicMock()
 
@@ -898,7 +802,7 @@ def test_manager_stop_checkpoint_uses_last_handled_market_timestamp_in_backtest(
                 _identity(spec),
                 dedupe=LifecycleSignalDedupe(),
             ),
-            oms=None,
+            risk_order_intent=None,
             replay=replay,
         )
 
@@ -947,7 +851,7 @@ def test_manager_stop_checkpoint_records_latest_replay_cursor_without_events() -
     handler = _CaptureHandler()
     clock = SimulatedClock()
     replay = ReplayGateway(
-        get_mode_policy(RuntimeMode.BACKTEST), object(), simulated_clock=clock
+        get_mode_policy(WorkerMode.BACKTEST), simulated_clock=clock
     )
     state_journal = MagicMock()
 
@@ -960,7 +864,7 @@ def test_manager_stop_checkpoint_records_latest_replay_cursor_without_events() -
                 _identity(spec),
                 dedupe=LifecycleSignalDedupe(),
             ),
-            oms=None,
+            risk_order_intent=None,
             replay=replay,
         )
 
@@ -1096,7 +1000,7 @@ def test_backtest_lifecycle_bind_and_start_invokes_sdk_hooks() -> None:
     handler = _CaptureHandler()
     clock = SimulatedClock()
     replay = ReplayGateway(
-        get_mode_policy(RuntimeMode.BACKTEST), object(), simulated_clock=clock
+        get_mode_policy(WorkerMode.BACKTEST), simulated_clock=clock
     )
     recorded: list[str] = []
 
@@ -1116,7 +1020,7 @@ def test_backtest_lifecycle_bind_and_start_invokes_sdk_hooks() -> None:
                 _identity(spec),
                 dedupe=LifecycleSignalDedupe(),
             ),
-            oms=None,
+            risk_order_intent=None,
             replay=replay,
         )
 

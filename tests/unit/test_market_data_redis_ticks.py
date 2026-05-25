@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from runtime.integration.market_data_redis_feed import (
+from runtime.infrastructure.redis.market_data_redis_feed import (
     STREAM_AM_1M,
     STREAM_QUOTES,
     STREAM_TRADES,

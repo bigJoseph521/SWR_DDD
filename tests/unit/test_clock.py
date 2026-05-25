@@ -3,25 +3,25 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 import pytest
-from runtime.domain.enums import RuntimeMode
+from runtime.domain.enums import WorkerMode
 from runtime.domain.errors import (
     UnsupportedDependencyExpansion,
     WorkerPolicyViolationError,
 )
-from runtime.integration.clock import (
+from runtime.infrastructure.clock.clock import (
     SimulatedClock,
     SystemClock,
     build_clock,
 )
-from runtime.runtime.mode_policy import (
+from runtime.domain.policies.mode_policy import (
     Capability,
     ModePolicy,
     get_mode_policy,
 )
 
 
-@pytest.mark.parametrize("mode", [RuntimeMode.PAPER, RuntimeMode.LIVE])
-def test_paper_live_clock_returns_aware_utc(mode: RuntimeMode) -> None:
+@pytest.mark.parametrize("mode", [WorkerMode.PAPER, WorkerMode.LIVE])
+def test_paper_live_clock_returns_aware_utc(mode: WorkerMode) -> None:
     clock = build_clock(get_mode_policy(mode))
     assert isinstance(clock, SystemClock)
     now = clock.now()
@@ -30,7 +30,7 @@ def test_paper_live_clock_returns_aware_utc(mode: RuntimeMode) -> None:
 
 
 def test_backtest_simulated_clock_raises_before_init() -> None:
-    clock = build_clock(get_mode_policy(RuntimeMode.BACKTEST))
+    clock = build_clock(get_mode_policy(WorkerMode.BACKTEST))
     assert isinstance(clock, SimulatedClock)
     with pytest.raises(WorkerPolicyViolationError) as exc_info:
         clock.now()
@@ -38,7 +38,7 @@ def test_backtest_simulated_clock_raises_before_init() -> None:
 
 
 def test_backtest_simulated_clock_returns_injected_time() -> None:
-    clock = build_clock(get_mode_policy(RuntimeMode.BACKTEST))
+    clock = build_clock(get_mode_policy(WorkerMode.BACKTEST))
     assert isinstance(clock, SimulatedClock)
     simulated_now = datetime(2026, 3, 29, 12, 0, tzinfo=timezone.utc)
     clock.set_time(simulated_now)
@@ -49,19 +49,19 @@ def test_backtest_simulated_clock_returns_injected_time() -> None:
     ("mode", "allowed", "expected_capability"),
     [
         (
-            RuntimeMode.PAPER,
+            WorkerMode.PAPER,
             frozenset({Capability.SIMULATED_CLOCK}),
             Capability.WALL_CLOCK.value,
         ),
         (
-            RuntimeMode.BACKTEST,
+            WorkerMode.BACKTEST,
             frozenset({Capability.WALL_CLOCK}),
             Capability.SIMULATED_CLOCK.value,
         ),
     ],
 )
 def test_factory_disallows_illegal_clock_per_mode(
-    mode: RuntimeMode,
+    mode: WorkerMode,
     allowed: frozenset[Capability],
     expected_capability: str,
 ) -> None:

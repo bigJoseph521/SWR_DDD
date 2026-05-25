@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 
 import pytest
-from runtime.observability.logger import (
+from runtime.infrastructure.observability.logger import (
     RuntimeLogContext,
     bind_runtime_context,
 )

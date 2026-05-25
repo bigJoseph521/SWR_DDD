@@ -4,9 +4,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from sqlalchemy import text
-import runtime.persistence.migrations as migrations_module
-from runtime.persistence.db import begin_connection, create_engine
-from runtime.persistence.migrations import (
+import runtime.infrastructure.persistence.migrations as migrations_module
+from runtime.infrastructure.persistence.db import begin_connection, create_engine
+from runtime.infrastructure.persistence.migrations import (
     MIGRATION_FILENAMES,
     _ensure_order_intent_journal_symbol_column,
     apply_migrations,
@@ -20,6 +20,49 @@ def _now_wire() -> str:
         .isoformat()
         .replace("+00:00", "Z")
     )
+
+
+MIGRATION_019 = "019_drop_causation_id_columns.sql"
+MIGRATIONS_THROUGH_018 = tuple(
+    name for name in MIGRATION_FILENAMES if name != MIGRATION_019
+)
+CAUSATION_ID_TABLES = (
+    "worker_instances",
+    "worker_launch_attempts",
+    "worker_heartbeat_observations",
+    "worker_events",
+    "worker_diagnostics",
+)
+
+
+def _table_columns(connection, table_name: str) -> set[str]:
+    return {
+        row[1]
+        for row in connection.execute(
+            text(f"PRAGMA table_info({table_name})")
+        ).fetchall()
+    }
+
+
+def _assert_causation_id_dropped_from_worker_tables(connection) -> None:
+    for table in CAUSATION_ID_TABLES:
+        cols = _table_columns(connection, table)
+        assert "causation_id" not in cols, table
+        assert "correlation_id" in cols, table
+
+
+def test_migration_manifest_lists_019_and_file_exists() -> None:
+    assert MIGRATION_019 in MIGRATION_FILENAMES
+    assert MIGRATION_FILENAMES.index(MIGRATION_019) == len(MIGRATION_FILENAMES) - 1
+    migration_path = (
+        Path(migrations_module.__file__).resolve().parents[3]
+        / "migrations"
+        / MIGRATION_019
+    )
+    assert migration_path.is_file()
+    sql = migration_path.read_text(encoding="utf-8")
+    for table in CAUSATION_ID_TABLES:
+        assert f"ALTER TABLE {table} DROP COLUMN causation_id" in sql
 
 
 def test_migrate_empty_db_through_latest_and_smoke_queries(tmp_path: Path) -> None:
@@ -68,6 +111,8 @@ def test_migrate_empty_db_through_latest_and_smoke_queries(tmp_path: Path) -> No
         assert "ix_order_intent_journal_symbol" in index_names
         assert "ix_order_intent_journal_runtime_launch_requested" in index_names
 
+        _assert_causation_id_dropped_from_worker_tables(connection)
+
         wire_now = _now_wire()
         connection.execute(
             text(
@@ -75,11 +120,11 @@ def test_migrate_empty_db_through_latest_and_smoke_queries(tmp_path: Path) -> No
                 INSERT INTO worker_instances(
                     runtime_id, worker_identity, tenant_id, trader_id, account_id,
                     strategy_version_id, launch_attempt, state, reason_code,
-                    occurred_at, observed_at, last_heartbeat_at, correlation_id, causation_id
+                    occurred_at, observed_at, last_heartbeat_at, correlation_id
                 ) VALUES (
                     :runtime_id, :worker_identity, :tenant_id, :trader_id, :account_id,
                     :strategy_version_id, :launch_attempt, :state, :reason_code,
-                    :occurred_at, :observed_at, :last_heartbeat_at, :correlation_id, :causation_id
+                    :occurred_at, :observed_at, :last_heartbeat_at, :correlation_id
                 )
                 """
             ),
@@ -97,7 +142,6 @@ def test_migrate_empty_db_through_latest_and_smoke_queries(tmp_path: Path) -> No
                 "observed_at": wire_now,
                 "last_heartbeat_at": None,
                 "correlation_id": "corr-1",
-                "causation_id": "cause-1",
             },
         )
         count = connection.execute(
@@ -112,6 +156,134 @@ def test_migrate_empty_db_through_latest_and_smoke_queries(tmp_path: Path) -> No
             ).fetchall()
         }
         assert set(MIGRATION_FILENAMES).issubset(applied)
+
+
+def test_migration_019_drops_causation_id_from_pre_018_schema(
+    tmp_path: Path, monkeypatch
+) -> None:
+    engine = create_engine(tmp_path / "pre019.db")
+    monkeypatch.setattr(
+        migrations_module, "MIGRATION_FILENAMES", MIGRATIONS_THROUGH_018
+    )
+    with begin_connection(engine) as connection:
+        apply_migrations(connection)
+        for table in CAUSATION_ID_TABLES:
+            assert "causation_id" in _table_columns(connection, table), table
+
+    monkeypatch.setattr(migrations_module, "MIGRATION_FILENAMES", MIGRATION_FILENAMES)
+    with begin_connection(engine) as connection:
+        apply_migrations(connection)
+        _assert_causation_id_dropped_from_worker_tables(connection)
+        applied = {
+            row[0]
+            for row in connection.execute(
+                text("SELECT version FROM schema_migrations")
+            ).fetchall()
+        }
+        assert MIGRATION_019 in applied
+
+
+def test_migration_019_preserves_row_data_after_dropping_causation_id(
+    tmp_path: Path, monkeypatch
+) -> None:
+    engine = create_engine(tmp_path / "pre019_rows.db")
+    wire_now = _now_wire()
+    monkeypatch.setattr(
+        migrations_module, "MIGRATION_FILENAMES", MIGRATIONS_THROUGH_018
+    )
+    with begin_connection(engine) as connection:
+        apply_migrations(connection)
+        connection.execute(
+            text(
+                """
+                INSERT INTO worker_instances(
+                    runtime_id, worker_identity, tenant_id, trader_id, account_id,
+                    strategy_version_id, launch_attempt, state, reason_code,
+                    occurred_at, observed_at, last_heartbeat_at,
+                    correlation_id, causation_id
+                ) VALUES (
+                    :runtime_id, :worker_identity, :tenant_id, :trader_id, :account_id,
+                    :strategy_version_id, :launch_attempt, :state, :reason_code,
+                    :occurred_at, :observed_at, :last_heartbeat_at,
+                    :correlation_id, :causation_id
+                )
+                """
+            ),
+            {
+                "runtime_id": "rt-pre019",
+                "worker_identity": '{"runtime_id":"rt-pre019"}',
+                "tenant_id": "tenant-1",
+                "trader_id": None,
+                "account_id": "acct-1",
+                "strategy_version_id": "sv-1",
+                "launch_attempt": 1,
+                "state": "RUNNING",
+                "reason_code": None,
+                "occurred_at": wire_now,
+                "observed_at": wire_now,
+                "last_heartbeat_at": wire_now,
+                "correlation_id": "corr-preserve",
+                "causation_id": "cause-drop-me",
+            },
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO worker_events(
+                    event_id, runtime_id, worker_identity, launch_attempt,
+                    event_family, state, reason_code, occurred_at, observed_at,
+                    correlation_id, causation_id, payload
+                ) VALUES (
+                    :event_id, :runtime_id, :worker_identity, :launch_attempt,
+                    :event_family, :state, :reason_code, :occurred_at, :observed_at,
+                    :correlation_id, :causation_id, :payload
+                )
+                """
+            ),
+            {
+                "event_id": "evt-pre019",
+                "runtime_id": "rt-pre019",
+                "worker_identity": '{"runtime_id":"rt-pre019"}',
+                "launch_attempt": 1,
+                "event_family": "lifecycle",
+                "state": "RUNNING",
+                "reason_code": None,
+                "occurred_at": wire_now,
+                "observed_at": wire_now,
+                "correlation_id": "corr-preserve",
+                "causation_id": "cause-drop-me",
+                "payload": '{"step":"running"}',
+            },
+        )
+
+    monkeypatch.setattr(migrations_module, "MIGRATION_FILENAMES", MIGRATION_FILENAMES)
+    with begin_connection(engine) as connection:
+        apply_migrations(connection)
+        _assert_causation_id_dropped_from_worker_tables(connection)
+        row = connection.execute(
+            text(
+                """
+                SELECT runtime_id, correlation_id, state
+                FROM worker_instances
+                WHERE runtime_id = 'rt-pre019'
+                """
+            )
+        ).one()
+        assert row.runtime_id == "rt-pre019"
+        assert row.correlation_id == "corr-preserve"
+        assert row.state == "RUNNING"
+        event = connection.execute(
+            text(
+                """
+                SELECT event_id, correlation_id, payload
+                FROM worker_events
+                WHERE event_id = 'evt-pre019'
+                """
+            )
+        ).one()
+        assert event.event_id == "evt-pre019"
+        assert event.correlation_id == "corr-preserve"
+        assert event.payload == '{"step":"running"}'
 
 
 def test_ensure_order_intent_journal_symbol_repairs_missing_column(
@@ -171,7 +343,7 @@ def test_apply_migrations_repairs_schema_history_without_tables(
     migrations_dir = tmp_path / "migrations"
     migrations_dir.mkdir()
     repo_migrations = (
-        Path(migrations_module.__file__).resolve().parents[2] / "migrations"
+        Path(migrations_module.__file__).resolve().parents[3] / "migrations"
     )
     for name in migrations_module.MIGRATION_FILENAMES:
         (migrations_dir / name).write_text(

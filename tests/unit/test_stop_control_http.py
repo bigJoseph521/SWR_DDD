@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 import threading
 from http.client import HTTPConnection
-from runtime.transport.http.stop_control_server import StopControlHttpServer
-from runtime.transport.internal.auth import (
+from runtime.interface.http.stop_control_server import StopControlHttpServer
+from runtime.infrastructure.http.auth import (
     TRUST_CLASS_CONTROL,
 )
 

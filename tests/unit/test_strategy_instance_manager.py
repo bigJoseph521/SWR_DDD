@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import pytest
-from runtime.bootstrap.strategy_adapter import StrategyAdapter
+from runtime.application.strategy_execution.strategy_adapter import StrategyAdapter
 from runtime.bootstrap.strategy_instance_manager import (
     StrategyAssignmentKey,
     StrategyInstanceManager,
 )
-from runtime.domain.enums import RuntimeMode
+from runtime.domain.enums import WorkerMode
 from runtime.domain.errors import SingleAssignmentViolationError
 
 
@@ -15,7 +15,7 @@ def _key(*, runtime_id: str = "rt-1", launch_attempt: int = 1) -> StrategyAssign
         runtime_id=runtime_id,
         strategy_version_id="sv-1",
         tenant_id="tenant-1",
-        mode=RuntimeMode.PAPER,
+        mode=WorkerMode.PAPER,
         launch_attempt=launch_attempt,
         account_id="acct-1",
         validated_parameter_identity="vp-1",

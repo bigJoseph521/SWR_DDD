@@ -7,11 +7,11 @@ from pathlib import Path
 from typing import Callable
 
 from sqlalchemy.engine import Connection
-from runtime.application.lifecycle_service import LifecycleService
+from runtime.application.lifecycle.lifecycle_service import LifecycleService
 from runtime.application.worker_app import WorkerApp
-from runtime.bootstrap.artifact_fetcher import ArtifactFetcher
-from runtime.bootstrap.artifact_verifier import ArtifactVerifier
-from runtime.bootstrap.entrypoint_loader import EntrypointLoader
+from runtime.infrastructure.strategy_loader.artifact_fetcher import ArtifactFetcher
+from runtime.infrastructure.strategy_loader.artifact_verifier import ArtifactVerifier
+from runtime.infrastructure.strategy_loader.entrypoint_loader import EntrypointLoader
 from runtime.bootstrap.failures import BootstrapFailure
 from runtime.bootstrap.launch_spec import LaunchSpec
 from runtime.bootstrap.persistence import (
@@ -26,36 +26,33 @@ from runtime.bootstrap.strategy_instance_manager import (
     StrategyInstanceManager,
 )
 from runtime.bootstrap.validator import LaunchSpecValidator
-from runtime.config.logging import (
+from runtime.infrastructure.config.logging import (
     build_runtime_log_context,
     configure_logging,
 )
-from runtime.config.settings import Settings
+from runtime.infrastructure.config.settings import Settings
 from runtime.domain.errors import (
     RuntimeWorkerReasonCode,
     WorkerErrorCode,
 )
 from runtime.domain.worker_identity import WorkerIdentity
-from runtime.observability.logger import (
+from runtime.infrastructure.observability.logger import (
     RuntimeBoundLogger,
     bind_runtime_context,
 )
-from runtime.persistence.db import begin_connection, create_engine
-from runtime.persistence.migrations import apply_migrations
-from runtime.persistence.repositories import (
+from runtime.infrastructure.persistence.db import begin_connection, create_engine
+from runtime.infrastructure.persistence.migrations import apply_migrations
+from runtime.infrastructure.persistence.repositories import (
     SQLiteDiagnosticRepository,
     SQLiteLaunchAttemptRepository,
     SQLiteWorkerEventRepository,
     SQLiteWorkerInstanceRepository,
 )
-from runtime.persistence.runtime_journal_sink import RuntimeJournalSink
-from runtime.runtime.dependencies import (
-    RuntimeDependencies,
-    build_runtime_dependencies,
-)
-from runtime.runtime.heartbeat_periodic import HeartbeatPeriodicJobs
-from runtime.runtime.mode_policy import ModePolicy, get_mode_policy
-from runtime.transport.grpc.historical_data_client import HistoricalDataGrpcClient
+from runtime.infrastructure.persistence.runtime_journal_sink import RuntimeJournalSink
+from runtime.application.runtime_dependencies import RuntimeDependencies
+from runtime.bootstrap.runtime_dependencies_wiring import build_runtime_dependencies
+from runtime.application.heartbeat.heartbeat_periodic import HeartbeatPeriodicJobs
+from runtime.domain.policies.mode_policy import ModePolicy, get_mode_policy
 
 
 class _NoopManagerClient:
@@ -63,7 +60,7 @@ class _NoopManagerClient:
         return {"accepted": True, "signal_type": payload.get("signal_type")}
 
 
-class _NoopOmsClient:
+class _NoopRiskOrderIntentClient:
     def submit_order_intent(self, payload: dict[str, object]) -> dict[str, object]:
         return {
             "accepted": False,
@@ -87,21 +84,6 @@ class _NoopOmsClient:
             "accepted": False,
             "reason_code": RuntimeWorkerReasonCode.BOUND_DEPENDENCY_UNAVAILABLE.value,
             "error_code": WorkerErrorCode.DEPENDENCY_UNHEALTHY.value,
-        }
-
-
-class _NoopReplayClient:
-    def ingest_replay_tick(self, payload: dict[str, object]) -> dict[str, object]:
-        return {"accepted": True, "replay": payload}
-
-    def submit_backtest_order_intent(
-        self, payload: dict[str, object]
-    ) -> dict[str, object]:
-        return {
-            "accepted": False,
-            "reason_code": RuntimeWorkerReasonCode.BOUND_DEPENDENCY_UNAVAILABLE.value,
-            "error_code": WorkerErrorCode.DEPENDENCY_UNHEALTHY.value,
-            "payload_echo": dict(payload),
         }
 
 
@@ -191,6 +173,7 @@ def _build_worker_identity(launch_spec: LaunchSpec) -> WorkerIdentity:
         artifact_digest=launch_spec.artifact_digest,
         entrypoint=launch_spec.entrypoint,
         launch_attempt=launch_spec.launch_attempt,
+        correlation_id=launch_spec.correlation_id,
     )
 
 
@@ -198,9 +181,8 @@ def build_dependency_container(
     settings: Settings,
     *,
     manager_client: object | None = None,
+    risk_order_intent_client: object | None = None,
     oms_client: object | None = None,
-    replay_client: object | None = None,
-    historical_data_client: HistoricalDataGrpcClient | None = None,
     strategy_instance_manager: StrategyInstanceManager | None = None,
     bootstrap_pipeline: BootstrapPipeline | None = None,
 ) -> DependencyContainer:
@@ -223,7 +205,7 @@ def build_dependency_container(
         )
         artifact_verifier = ArtifactVerifier()
         entrypoint_loader = EntrypointLoader()
-        sdk_validator = SdkContractValidator()
+        sdk_validator = SdkContractValidator(work_root=Path(settings.work_root))
         bootstrap_pipeline = BootstrapPipeline(
             fetcher=artifact_fetcher,
             verifier=artifact_verifier,
@@ -241,12 +223,9 @@ def build_dependency_container(
         return bind_runtime_context(base_logger, runtime_log_context)
 
     effective_manager_client = manager_client or _NoopManagerClient()
-    if launch_spec.mode.value == "BACKTEST":
-        effective_oms_client = oms_client or _NoopOmsClient()
-        effective_replay_client = replay_client or _NoopReplayClient()
-    else:
-        effective_oms_client = oms_client or _NoopOmsClient()
-        effective_replay_client = None
+    effective_risk_client = (
+        risk_order_intent_client or oms_client or _NoopRiskOrderIntentClient()
+    )
 
     runtime_dependencies_cache: RuntimeDependencies | None = None
     lifecycle_service: LifecycleService | None = None
@@ -276,7 +255,7 @@ def build_dependency_container(
         nonlocal runtime_dependencies_cache
         if runtime_dependencies_cache is None:
 
-            def _on_oms_order_intent_result(
+            def _on_risk_order_intent_result(
                 source: str,
                 payload: dict[str, object],
                 result: dict[str, object],
@@ -288,8 +267,7 @@ def build_dependency_container(
                 launch_spec.mode,
                 manager_client=effective_manager_client,
                 runtime_identity=worker_identity,
-                oms_client=effective_oms_client,
-                replay_client=effective_replay_client,
+                risk_order_intent_client=effective_risk_client,
                 on_first_data=(
                     lifecycle_service.mark_first_data_received
                     if lifecycle_service is not None
@@ -302,20 +280,16 @@ def build_dependency_container(
                 ),
                 replay_tick_logging_quiet=settings.replay_tick_logging_quiet,
                 heartbeat_log_enabled=settings.heartbeat_log_enabled,
-                on_oms_order_intent_result=(
-                    _on_oms_order_intent_result if state_journal is not None else None
+                on_risk_order_intent_result=(
+                    _on_risk_order_intent_result if state_journal is not None else None
                 ),
             )
         return runtime_dependencies_cache
 
     closeables_list: list[object] = [
         effective_manager_client,
-        effective_oms_client,
-        effective_replay_client,
+        effective_risk_client,
     ]
-    if historical_data_client is not None:
-        closeables_list.append(historical_data_client)
-
     lifecycle_service = LifecycleService(
         launch_spec=launch_spec,
         launch_payload=settings.launch_payload,
@@ -330,7 +304,6 @@ def build_dependency_container(
         closeables=tuple(closeables_list),
         state_journal=state_journal,
         worker_runtime_settings=settings,
-        historical_data_client=historical_data_client,
     )
     lifecycle_ref[0] = lifecycle_service
     worker_app = WorkerApp(lifecycle_service)

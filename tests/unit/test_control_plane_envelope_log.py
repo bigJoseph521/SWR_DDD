@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from runtime.transport.grpc.control_plane_envelope_log import (
+from runtime.infrastructure.grpc.control_plane_envelope_log import (
     BANNER_WR_TO_RM,
     write_control_plane_envelope,
 )

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 
-from runtime.runtime.heartbeat_periodic import HeartbeatPeriodicJobs
+from runtime.application.heartbeat.heartbeat_periodic import HeartbeatPeriodicJobs
 
 
 def test_periodic_invokes_tick_repeatedly() -> None:
