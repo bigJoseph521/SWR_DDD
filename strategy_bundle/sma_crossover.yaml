@@ -1,0 +1,23 @@
+type: object
+title: SMACrossOverParameters
+additionalProperties: false
+entrypoint: "sma_crossover:SMACrossOver"
+sdk_version: apexai-SDK-1.2.3
+required:
+  - fast_period
+  - slow_period
+
+properties:
+  fast_period:
+    type: integer
+    default: 10
+    description: "SMA lookback for the fast line"
+  slow_period:
+    type: integer
+    default: 30
+    description: "SMA lookback for the slow line"
+
+risk:
+  max_order_notional:
+    value: 2000.0
+    currency: USD
