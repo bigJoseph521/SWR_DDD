@@ -1,5 +1,5 @@
 """
-Replay/backtest helpers that replace SDK modules not present in this repository's
+Runtime stubs that replace SDK modules not present in this repository's
 alphovex_sdk tree (no ``services`` package, consolidated ``models``, etc.).
 """
 
@@ -99,8 +99,8 @@ class SnapshotPortfolioService:
 
 
 @dataclass
-class ReplayOrderIntent:
-    """Duck-compatible order intent for gRPC mapping (SDK :class:`OrderIntent` is frozen/brittle)."""
+class RuntimeOrderIntent:
+    """Duck-compatible order intent for runtime egress (SDK :class:`OrderIntent` is frozen/brittle)."""
 
     instrument_id: str
     side: OrderSide
@@ -119,7 +119,7 @@ class ReplayOrderIntent:
 
 
 class DefaultOrderService:
-    """Minimal in-process order facade for replay; subclass for gRPC forwarding."""
+    """Minimal in-process order facade for runtime SDK bridge; subclass for order egress."""
 
     __slots__ = ("_strategy_id", "_user_id", "_submission_time")
 
@@ -137,12 +137,12 @@ class DefaultOrderService:
     def buy(self, order_intent: OrderIntent) -> None:
         if order_intent.side is not OrderSide.BUY:
             raise ValueError("buy() requires OrderIntent with side=BUY")
-        self._deliver_replay_intent(self._replay_intent_from_sdk(order_intent))
+        self._deliver_runtime_intent(self._runtime_intent_from_sdk(order_intent))
 
     def sell(self, order_intent: OrderIntent) -> None:
         if order_intent.side is not OrderSide.SELL:
             raise ValueError("sell() requires OrderIntent with side=SELL")
-        self._deliver_replay_intent(self._replay_intent_from_sdk(order_intent))
+        self._deliver_runtime_intent(self._runtime_intent_from_sdk(order_intent))
 
     def cancel_all(self) -> None:
         return None
@@ -177,7 +177,7 @@ class DefaultOrderService:
     def has_active_for_instrument(self, instrument_id: str) -> bool:
         return False
 
-    def _replay_intent_from_sdk(self, oi: OrderIntent) -> ReplayOrderIntent:
+    def _runtime_intent_from_sdk(self, oi: OrderIntent) -> RuntimeOrderIntent:
         if self._submission_time is not None:
             created = self._submission_time()
         else:
@@ -186,7 +186,7 @@ class DefaultOrderService:
             created = created.replace(tzinfo=timezone.utc)
         else:
             created = created.astimezone(timezone.utc)
-        return ReplayOrderIntent(
+        return RuntimeOrderIntent(
             instrument_id=str(oi.instrument_id),
             side=oi.side,
             quantity=float(oi.quantity),
@@ -199,13 +199,12 @@ class DefaultOrderService:
             created_at=created,
         )
 
-    def _deliver_replay_intent(self, intent: ReplayOrderIntent) -> None:
+    def _deliver_runtime_intent(self, intent: RuntimeOrderIntent) -> None:
         _ = intent
-
 
 class IndicatorService:
     """
-    Replay indicator backend: advances SDK :class:`~alphovex_sdk.indicators.base.Indicator`
+    Runtime indicator backend: advances SDK :class:`~alphovex_sdk.indicators.base.Indicator`
     instances when bars/quotes/ticks arrive so :meth:`get_indicator_value` matches
     :meth:`~alphovex_sdk.strategy.base.Strategy.on_bar` ordering.
     """

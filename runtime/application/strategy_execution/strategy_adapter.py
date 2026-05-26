@@ -45,12 +45,17 @@ class StrategyAdapter:
         mapper: EventMapper | None = None,
         boundary: StrategyErrorBoundary | None = None,
         backtest_sdk_bridge: BacktestSdkBridgePort | None = None,
+        runtime_sdk_bridge: BacktestSdkBridgePort | None = None,
         replay_sdk_bridge: BacktestSdkBridgePort | None = None,
     ) -> None:
         self._strategy = strategy
         self._mapper = mapper or EventMapper()
         self._boundary = boundary or StrategyErrorBoundary()
-        self._backtest_sdk_bridge = backtest_sdk_bridge or replay_sdk_bridge
+        self._runtime_sdk_bridge = (
+            backtest_sdk_bridge or runtime_sdk_bridge or replay_sdk_bridge
+        )
+        # Legacy attribute name used by lifecycle wiring.
+        self._backtest_sdk_bridge = self._runtime_sdk_bridge
         self._lifecycle_started = False
 
     def bind_and_start(self) -> StrategyCallResult[Any]:
@@ -73,7 +78,7 @@ class StrategyAdapter:
             )
 
         strategy = self._strategy
-        bridge = self._backtest_sdk_bridge
+        bridge = self._runtime_sdk_bridge
 
         if isinstance(strategy, SdkStrategy):
             if bridge is not None:
@@ -121,8 +126,8 @@ class StrategyAdapter:
         if len(params) >= 1:
             # TODO(STP-1012): remove legacy initialize(context) shim once artifacts use SDK lifecycle only.
             ctx = (
-                self._backtest_sdk_bridge.strategy_context
-                if self._backtest_sdk_bridge is not None
+                self._runtime_sdk_bridge.strategy_context
+                if self._runtime_sdk_bridge is not None
                 else None
             )
             return self._boundary.call("strategy.initialize", hook, ctx)
@@ -154,7 +159,7 @@ class StrategyAdapter:
             )
 
         mapped = map_result.value
-        bridge = self._backtest_sdk_bridge
+        bridge = self._runtime_sdk_bridge
 
         if bridge is not None and isinstance(mapped, MarketBarEvent):
             on_bar = getattr(self._strategy, "on_bar", None)

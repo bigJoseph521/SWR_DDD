@@ -20,6 +20,7 @@ class Capability(str, Enum):
     WALL_CLOCK = "WALL_CLOCK"
     SIMULATED_CLOCK = "SIMULATED_CLOCK"
     RISK_ORDER_INTENT_EGRESS = "RISK_ORDER_INTENT_EGRESS"
+    BACKTEST_ORDER_INTENT_EGRESS = "BACKTEST_ORDER_INTENT_EGRESS"
     MANAGER_SIGNAL = "MANAGER_SIGNAL"
 
 
@@ -86,7 +87,7 @@ _MODE_CAPABILITIES: dict[WorkerMode, frozenset[Capability]] = {
         {
             Capability.SIMULATED_CLOCK,
             Capability.MANAGER_SIGNAL,
-            Capability.RISK_ORDER_INTENT_EGRESS,
+            Capability.BACKTEST_ORDER_INTENT_EGRESS,
         }
     ),
 }
@@ -110,7 +111,6 @@ _MODE_ALLOWED_DEPENDENCIES: Final[dict[WorkerMode, frozenset[str]]] = {
         {
             ServiceTarget.STRATEGY_RUNTIME_MANAGER.value,
             DependencyAccessPattern.BACKTEST_ORDER_INTENT.value,
-            DependencyAccessPattern.RISK_ORDER_INTENT_EGRESS.value,
         }
     ),
 }
@@ -118,7 +118,7 @@ _MODE_ALLOWED_DEPENDENCIES: Final[dict[WorkerMode, frozenset[str]]] = {
 _ORDER_INTENT_ROUTE: Final[dict[WorkerMode, ServiceTarget]] = {
     WorkerMode.PAPER: ServiceTarget.RISK_SERVICE,
     WorkerMode.LIVE: ServiceTarget.RISK_SERVICE,
-    WorkerMode.BACKTEST: ServiceTarget.RISK_SERVICE,
+    WorkerMode.BACKTEST: ServiceTarget.BACKTEST_RUNNER,
 }
 
 _MODE_BLOCKED_EVENTS: Final[dict[WorkerMode, frozenset[str]]] = {

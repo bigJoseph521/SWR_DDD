@@ -25,8 +25,9 @@ from runtime.bootstrap.srm_env_status_report import (
     report_runtime_context_fetch_failure_to_srm,
 )
 from runtime.domain.errors import RuntimeWorkerReasonCode, WorkerErrorCode
+from runtime.domain.enums import WorkerMode
 from runtime.domain.launch_field_errors import derive_field_buckets_from_field_errors
-from runtime.infrastructure.config.settings import Settings, load_settings
+from runtime.infrastructure.config.settings import load_settings
 from runtime.infrastructure.grpc.control_plane_envelope_log import (
     BANNER_WR_TO_RM,
     write_control_plane_envelope,
@@ -198,7 +199,12 @@ def run_runtime_from_cli() -> None:
         raise SystemExit(2) from None
 
     outbound_clients = build_runtime_outbound_clients(settings)
-    if outbound_clients.risk_order_intent_client is not None:
+    if settings.launch_spec.mode is WorkerMode.BACKTEST:
+        print(
+            "order intent egress: BACKTEST stdout JSONL (ORDER_INTENT messages)",
+            flush=True,
+        )
+    elif outbound_clients.risk_order_intent_client is not None:
         print(
             "order intent egress: Risk Service gRPC (risk_worker.proto) "
             f"{settings.risk_grpc_target!r} "

@@ -56,7 +56,7 @@ normalized, **all modes** use the same pipeline:
 
 - BACKTEST ingress: ``BacktestStdinMarketDataFeed`` (``runtime/interface/stdio/``) wired from ``lifecycle_feed_wiring``; ``END_OF_STREAM`` / EOF calls ``mark_backtest_market_data_stream_complete``.
 - PAPER/LIVE ingress: ``lifecycle_feed_wiring`` / ``market_data_redis_feed`` → ``LifecycleService._dispatch_paper_live_tick``.
-- ``ReplaySdkBridge`` / ``BacktestSdkBridge`` is SDK in-memory data only, not a separate strategy execution path.
+- ``RuntimeSdkBridge`` (aliases: ``ReplaySdkBridge``, ``BacktestSdkBridge``) is SDK in-memory data only, not a separate strategy execution path.
 
 **Application port:** ``MarketDataFeedPort`` (``runtime/application/ports/market_data_feed.py``) — generic ``start(on_tick)`` / ``stop()`` contract for mode-specific feeders.
 
@@ -156,14 +156,20 @@ Portfolio updates use ``EventDispatcher.dispatch_portfolio()`` →
 ``RuntimeEventHandler.handle_portfolio_update()``.
 ``EventDispatcher`` must not introspect private handler attributes.
 
-### Order intents → Risk Service (no OMS egress)
+### Order intents (mode-specific egress; no OMS)
 
 Strategy Worker Runtime does **not** contain OMS client code, OMS gateways, OMS config/env
-(``SWR_OMS_*``), or composition paths that submit order intents to OMS. All SDK order intents
-egress through Risk Service only. OMS interaction, when required by the platform, happens
-downstream of Risk (not from SWR).
+(``SWR_OMS_*``), or composition paths that submit order intents to OMS. OMS interaction, when
+required by the platform, happens downstream of Risk (not from SWR).
+
+| Mode | Egress |
+|------|--------|
+| **BACKTEST** | stdout JSONL ``ORDER_INTENT`` envelope (upstream runner reads stdout) |
+| **PAPER / LIVE** | Risk Service gRPC (``risk_worker.proto``) |
 
 Enforced by ``tests/unit/test_no_oms_runtime_code.py`` (forbidden OMS tokens in ``runtime/**/*.py``).
+
+**PAPER/LIVE path:**
 
 ```
 SDK order intent
@@ -175,13 +181,23 @@ SDK order intent
   → Risk Service gRPC
 ```
 
-SDK submitter composition lives in ``runtime/bootstrap/sdk_order_intent_wiring.py``.
+**BACKTEST path:**
+
+```
+SDK order intent
+  → StrategyOrderIntent
+  → SubmitOrderIntent
+  → BacktestStdoutOrderIntentSubmissionAdapter
+  → build_risk_order_intent_wire_payload() → order_intent_wire_dict_for_console()
+  → emit_backtest_order_intent_jsonl()  (interface/stdio; type ORDER_INTENT)
+```
+
+SDK submitter composition lives in ``runtime/bootstrap/sdk_order_intent_wiring.py`` (selects adapter by mode).
 ``runtime/application/order_intents/`` must not import ``runtime/infrastructure/``.
 
-Risk egress requires a real ``correlation_id`` from launch/bundle context,
-``PlatformTraceSpec``, or validated runtime fallback. The wire mapper must not
-invent random orphan correlation IDs; missing correlation metadata fails closed
-with ``MISSING_CORRELATION_ID``.
+Wire enrichment requires a real ``correlation_id`` from launch/bundle context,
+``PlatformTraceSpec``, or validated runtime fallback. Missing correlation metadata fails closed
+with ``MISSING_CORRELATION_ID`` (all modes).
 
 ``SubmitOrderIntent`` maps typed submission failures to stable ``reason_code``
 values (for example ``RISK_SERVICE_UNAVAILABLE``, ``RISK_SERVICE_TIMEOUT``,

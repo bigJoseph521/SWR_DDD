@@ -77,7 +77,6 @@ def build_runtime_specs_from_settings(settings: Settings) -> BuiltRuntimeSpecs:
         backtest_job_id=backtest_job_id if launch.mode is WorkerMode.BACKTEST else None,
         account_id=launch.account_id,
         portfolio_id=None,
-        risk_snapshot_id=None,
     )
 
     trace = build_platform_trace_from_settings(settings)

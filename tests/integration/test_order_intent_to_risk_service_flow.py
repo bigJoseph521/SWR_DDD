@@ -3,6 +3,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 import pytest
+from unittest.mock import patch
 from runtime.domain.launch_spec import LaunchSpec
 from runtime.domain.enums import (
     OrderIntentSide,
@@ -16,7 +17,9 @@ from runtime.infrastructure.grpc.risk_order_intent_wire_mapper import (
     build_risk_order_intent_wire_payload,
 )
 from runtime.domain.policies.mode_policy import get_mode_policy
-
+from runtime.infrastructure.backtest.backtest_stdout_order_intent_submission_adapter import (
+    BacktestStdoutOrderIntentSubmissionAdapter,
+)
 
 class _FakeRiskOrderIntentClient:
     def __init__(self) -> None:
@@ -91,14 +94,29 @@ def test_paper_live_intent_egress_calls_risk_service_with_normalized_intent(
     assert client.mark_filled_calls == 0
 
 
-def test_backtest_can_construct_risk_order_intent_gateway() -> None:
-    """BACKTEST allows Risk Service ``OrderIntent`` gRPC egress."""
-    gateway = RiskOrderIntentGateway(
-        get_mode_policy(WorkerMode.BACKTEST), _FakeRiskOrderIntentClient()
+def test_backtest_order_intent_egress_writes_stdout_jsonl() -> None:
+    """BACKTEST order intents egress to stdout JSONL (not Risk gRPC)."""
+    adapter = BacktestStdoutOrderIntentSubmissionAdapter(
+        submission_context=OrderSubmissionContext(
+            launch_spec=_launch_spec(mode=WorkerMode.BACKTEST),
+            allocate_order_intent_id=lambda: "oi-backtest",
+            correlation_id_fallback="corr-risk-flow",
+        )
     )
-    wire = _wire_for_mode(WorkerMode.BACKTEST)
-    ack = gateway.submit_order_intent_wire(wire)
-    assert ack == {"accepted": True, "id": wire["idempotency_key"]}
+    intent = StrategyOrderIntent(
+        instrument_id="BTC-USD",
+        side=OrderIntentSide.BUY,
+        order_type=OrderIntentType.LIMIT,
+        quantity=Decimal("1.5"),
+        limit_price=Decimal("50000"),
+        client_order_id="intent-backtest",
+    )
+    with patch(
+        "runtime.infrastructure.backtest.backtest_stdout_order_intent_submission_adapter.emit_backtest_order_intent_jsonl",
+    ) as emit:
+        ack = adapter.submit_order_intent(intent)
+    emit.assert_called_once()
+    assert ack == {"accepted": True, "egress": "stdout_jsonl"}
 
 
 def test_gateway_exposes_intent_only_method_semantics() -> None:

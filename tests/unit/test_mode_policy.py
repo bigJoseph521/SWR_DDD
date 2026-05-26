@@ -13,12 +13,15 @@ from runtime.domain.policies.mode_policy import (
 )
 
 
-@pytest.mark.parametrize(
-    "mode", [WorkerMode.PAPER, WorkerMode.LIVE, WorkerMode.BACKTEST]
-)
-def test_all_modes_route_order_intent_to_risk_service(mode: WorkerMode) -> None:
+@pytest.mark.parametrize("mode", [WorkerMode.PAPER, WorkerMode.LIVE])
+def test_paper_live_route_order_intent_to_risk_service(mode: WorkerMode) -> None:
     policy = get_mode_policy(mode)
     assert policy.route_order_intent() is ServiceTarget.RISK_SERVICE
+
+
+def test_backtest_routes_order_intent_to_stdout_runner() -> None:
+    policy = get_mode_policy(WorkerMode.BACKTEST)
+    assert policy.route_order_intent() is ServiceTarget.BACKTEST_RUNNER
 
 
 @pytest.mark.parametrize(
@@ -33,9 +36,9 @@ def test_replay_chunk_direct_fetch_is_blocked_for_all_modes(mode: WorkerMode) ->
     assert exc_info.value.details["event_type"] == "replay.chunk.direct.fetch"
 
 
-def test_risk_order_intent_capability_is_allowed_in_backtest() -> None:
+def test_backtest_order_intent_capability_is_stdout_egress() -> None:
     policy = get_mode_policy(WorkerMode.BACKTEST)
-    require_capability(policy, Capability.RISK_ORDER_INTENT_EGRESS)
+    require_capability(policy, Capability.BACKTEST_ORDER_INTENT_EGRESS)
 
 
 def test_unknown_mode_is_rejected() -> None:

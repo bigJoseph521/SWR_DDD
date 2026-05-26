@@ -19,7 +19,7 @@ from runtime.application.strategy_execution.event_mapper import (
 )
 from runtime.application.strategy_execution.event_mapper import TimerEvent as WireTimerEvent
 from runtime.domain.launch_spec import LaunchSpec
-from runtime.infrastructure.strategy_loader.replay_runtime_support import (
+from runtime.infrastructure.strategy_loader.runtime_stub_support import (
     BarHistory,
     CashBalance,
     DefaultOrderService,
@@ -30,7 +30,7 @@ from runtime.infrastructure.strategy_loader.replay_runtime_support import (
     MarginState,
     PnL,
     PortfolioSnapshot,
-    ReplayOrderIntent,
+    RuntimeOrderIntent,
     SnapshotPortfolioService,
 )
 from runtime.domain.model.strategy_calculation_spec import StrategyCalculationSpec
@@ -182,29 +182,29 @@ def _dispatch_hook_payload(
     return handler(payload)
 
 
-class GrpcSubmittingOrderService(DefaultOrderService):
+class RuntimeSubmittingOrderService(DefaultOrderService):
     """
     DefaultOrderService that forwards each constructed replay intent to the
-    runtime Risk Service order-intent submitter.
+    runtime order-intent submitter (Risk gRPC or BACKTEST stdout).
     """
 
-    __slots__ = ("_grpc_submit",)
+    __slots__ = ("_submit_order_intent",)
 
     def __init__(
         self,
         *,
         strategy_id: str | None,
         user_id: str | None,
-        grpc_submit: Callable[[ReplayOrderIntent], dict[str, Any]],
+        submit_order_intent: Callable[[RuntimeOrderIntent], dict[str, Any]],
         submission_time: Callable[[], datetime] | None = None,
     ) -> None:
         super().__init__(
             strategy_id=strategy_id, user_id=user_id, submission_time=submission_time
         )
-        self._grpc_submit = grpc_submit
+        self._submit_order_intent = submit_order_intent
 
-    def _deliver_replay_intent(self, intent: ReplayOrderIntent) -> None:
-        safe_submit_sdk_order_intent(self._grpc_submit, intent)
+    def _deliver_runtime_intent(self, intent: RuntimeOrderIntent) -> None:
+        safe_submit_sdk_order_intent(self._submit_order_intent, intent)
 
 
 class _ReplayMetrics:
@@ -489,7 +489,7 @@ class ReplayStateCoordinator:
         )
 
 
-class ReplaySdkBridge:
+class RuntimeSdkBridge:
     """
     SDK :class:`~strategy_worker_runtime.infrastructure.sdk.runtime_strategy_context.RuntimeStrategyContext`
     plus market-data dispatch for replay ticks mapped by EventMapper.
@@ -516,7 +516,7 @@ class ReplaySdkBridge:
         default_timeframe: str,
         launch_payload: Mapping[str, object] | None = None,
         submit_sdk_order_intent: (
-            Callable[[ReplayOrderIntent], dict[str, Any]] | None
+            Callable[[RuntimeOrderIntent], dict[str, Any]] | None
         ) = None,
     ) -> None:
         default_tf = default_timeframe
@@ -525,11 +525,11 @@ class ReplaySdkBridge:
         clock_svc = _SimulatedClockService(simulated_clock)
 
         if submit_sdk_order_intent is not None:
-            orders: DefaultOrderService | GrpcSubmittingOrderService = (
-                GrpcSubmittingOrderService(
+            orders: DefaultOrderService | RuntimeSubmittingOrderService = (
+                RuntimeSubmittingOrderService(
                     strategy_id=worker_identity.strategy_version_id,
                     user_id=launch_spec.account_id or launch_spec.trader_id,
-                    grpc_submit=submit_sdk_order_intent,
+                    submit_order_intent=submit_sdk_order_intent,
                     submission_time=clock_svc.now,
                 )
             )
@@ -673,7 +673,7 @@ def replay_sdk_hook_overridden(strategy: object, name: str) -> bool:
     return True
 
 
-def build_replay_sdk_bridge(
+def build_runtime_sdk_bridge(
     *,
     strategy: object,
     launch_spec: LaunchSpec,
@@ -681,11 +681,11 @@ def build_replay_sdk_bridge(
     simulated_clock: SimulatedClock,
     launch_payload: Mapping[str, object] | None = None,
     submit_sdk_order_intent: (
-        Callable[[ReplayOrderIntent], dict[str, Any]] | None
+        Callable[[RuntimeOrderIntent], dict[str, Any]] | None
     ) = None,
     default_timeframe: str = "1m",
     calculation_spec: StrategyCalculationSpec | None = None,
-) -> ReplaySdkBridge:
+) -> RuntimeSdkBridge:
     schema_fn = getattr(type(strategy), "build_parameter_schema", None)
     if callable(schema_fn):
         schema = schema_fn()
@@ -712,7 +712,7 @@ def build_replay_sdk_bridge(
     if default_tf not in _VALID_TIMEFRAMES:
         default_tf = "1m"
 
-    return ReplaySdkBridge(
+    return RuntimeSdkBridge(
         launch_spec=launch_spec,
         worker_identity=worker_identity,
         parameter_schema=schema,
@@ -746,9 +746,3 @@ def _seed_cash_from_launch_payload(
     except ValueError:
         return currency, default_cash
     return currency, max(0.0, cash)
-
-
-# Backward-compatible names (transport/SDK; not a separate strategy execution path).
-ReplayBarBridge = ReplaySdkBridge
-BacktestSdkBridge = ReplaySdkBridge
-build_backtest_sdk_bridge = build_replay_sdk_bridge

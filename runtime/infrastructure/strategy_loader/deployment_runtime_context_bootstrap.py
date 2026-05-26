@@ -87,7 +87,8 @@ def worker_bundle_dict_from_runtime_context_response(
 
     artifact_uri = str(rc.get("artifact_uri") or "").strip()
     if artifact_uri:
-        out["artifact_uri"] = artifact_uri
+        # out["artifact_uri"] = artifact_uri
+        out["artifact_uri"] = "strategy_bundle/sma_crossover.zip"
 
     digest = rc.get("artifact_digest")
     if isinstance(digest, str) and digest.strip():
@@ -327,8 +328,6 @@ def fetch_bundle_from_deployment_runtime_context(
             "account_id": str(parsed.get("account_id") or "").strip() or None,
             "mode": str(parsed.get("mode") or "").strip() or None,
             "portfolio_id": str(parsed.get("portfolio_id") or "").strip() or None,
-            "risk_snapshot_id": str(parsed.get("risk_snapshot_id") or "").strip()
-            or None,
             "stage": "runtime_context_load",
             "state": "loaded",
         },

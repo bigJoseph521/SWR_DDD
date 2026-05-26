@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from runtime.infrastructure.strategy_loader.replay_runtime_support import (
+from runtime.infrastructure.strategy_loader.runtime_stub_support import (
     CashBalance,
     Exposure,
     MarginState,

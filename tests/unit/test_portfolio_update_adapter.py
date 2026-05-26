@@ -19,7 +19,7 @@ from runtime.application.event_handling.portfolio_update_handler import (
 from runtime.application.event_handling.sdk_account_context_updater import (
     SdkAccountContextUpdater,
 )
-from runtime.infrastructure.strategy_loader.replay_runtime_support import (
+from runtime.infrastructure.strategy_loader.runtime_stub_support import (
     CashBalance,
     Exposure,
     MarginState,

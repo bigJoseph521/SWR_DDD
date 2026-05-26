@@ -47,7 +47,6 @@ def build_runtime_log_context(
     payload = settings.launch_payload
     deployment_id = _optional_payload_str(payload, "deployment_id")
     portfolio_id = _optional_payload_str(payload, "portfolio_id")
-    risk_snapshot_id = _optional_payload_str(payload, "risk_snapshot_id")
     return RuntimeLogContext(
         runtime_id=launch_spec.runtime_id,
         tenant_id=launch_spec.tenant_id,
@@ -62,7 +61,6 @@ def build_runtime_log_context(
         strategy_id=trace.strategy_id,
         deployment_id=deployment_id,
         portfolio_id=portfolio_id,
-        risk_snapshot_id=risk_snapshot_id,
         request_id=trace.request_id,
         runtime_type="STRATEGY_WORKER_RUNTIME",
         mode=launch_spec.mode.value,

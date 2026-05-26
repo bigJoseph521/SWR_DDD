@@ -7,9 +7,9 @@ from runtime.infrastructure.strategy_loader.deployment_runtime_context_bootstrap
     worker_bundle_dict_from_runtime_context_response,
 )
 from runtime.domain.launch_spec import LaunchSpec
-from runtime.infrastructure.sdk.replay_sdk_bridge import (
+from runtime.infrastructure.sdk.runtime_sdk_bridge import (
     _seed_cash_from_launch_payload,
-    build_replay_sdk_bridge,
+    build_runtime_sdk_bridge,
 )
 from runtime.infrastructure.strategy_loader.strategy_bundle_loader import raw_dict_to_launch_payload
 from runtime.domain.enums import WorkerMode
@@ -73,7 +73,7 @@ def test_raw_dict_to_launch_payload_preserves_initial_cash() -> None:
     assert payload["initial_cash"] == {"amount": "900.00", "currency": "USD"}
 
 
-def test_build_replay_sdk_bridge_seeds_account_cash_balance() -> None:
+def test_build_runtime_sdk_bridge_seeds_account_cash_balance() -> None:
     launch_payload, _, _, _ = raw_dict_to_launch_payload(
         {
             "runtime_id": "rt-1",
@@ -111,7 +111,7 @@ def test_build_replay_sdk_bridge_seeds_account_cash_balance() -> None:
         def build_parameter_schema(cls) -> ParameterSchema:
             return ParameterSchema(parameters={})
 
-    bridge = build_replay_sdk_bridge(
+    bridge = build_runtime_sdk_bridge(
         strategy=_Strat(),
         launch_spec=launch_spec,
         worker_identity=WorkerIdentity(

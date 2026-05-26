@@ -102,8 +102,10 @@ def build_lifecycle_ddd_wiring(
         extract_timestamp=_parse_tick_timestamp,
     )
     portfolio_handler: PortfolioUpdateHandler | None = None
-    bridge = getattr(strategy_adapter, "_backtest_sdk_bridge", None) or getattr(
-        strategy_adapter, "_replay_sdk_bridge", None
+    bridge = (
+        getattr(strategy_adapter, "_runtime_sdk_bridge", None)
+        or getattr(strategy_adapter, "_backtest_sdk_bridge", None)
+        or getattr(strategy_adapter, "_replay_sdk_bridge", None)
     )
     if bridge is not None:
         account = getattr(getattr(bridge, "strategy_context", None), "account", None)

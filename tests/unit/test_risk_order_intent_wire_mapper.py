@@ -18,7 +18,7 @@ from runtime.infrastructure.grpc.risk_order_intent_wire_mapper import (
     strategy_order_intent_from_sdk,
 )
 from runtime.domain.model.platform_trace_spec import PlatformTraceSpec
-from runtime.infrastructure.strategy_loader.replay_runtime_support import ReplayOrderIntent
+from runtime.infrastructure.strategy_loader.runtime_stub_support import RuntimeOrderIntent
 
 
 def _launch_spec(**extra: object) -> LaunchSpec:
@@ -227,8 +227,8 @@ def test_build_risk_wire_payload_does_not_use_uuid_for_missing_correlation() -> 
         mock_uuid.assert_not_called()
 
 
-def test_strategy_order_intent_from_sdk_replay_intent() -> None:
-    sdk = ReplayOrderIntent(
+def test_strategy_order_intent_from_sdk_runtime_intent() -> None:
+    sdk = RuntimeOrderIntent(
         instrument_id=" AAPL ",
         side=OrderSide.BUY,
         quantity=2.0,

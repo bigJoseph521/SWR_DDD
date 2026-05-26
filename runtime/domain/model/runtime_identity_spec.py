@@ -15,4 +15,3 @@ class RuntimeIdentitySpec:
     backtest_job_id: str | None
     account_id: str | None
     portfolio_id: str | None
-    risk_snapshot_id: str | None

@@ -10,7 +10,7 @@ from alphovex_sdk.typedefs import InstrumentId
 
 
 class RuntimeOrdersContext(OrdersContext):
-    """Delegates to SDK :class:`DefaultOrderService` / :class:`GrpcSubmittingOrderService`."""
+    """Delegates to SDK :class:`DefaultOrderService` / :class:`RuntimeSubmittingOrderService`."""
 
     __slots__ = ("_svc",)
 

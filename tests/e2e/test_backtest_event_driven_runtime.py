@@ -14,7 +14,7 @@ from tests.e2e._helpers import (
 )
 
 
-def test_backtest_runtime_wires_simulated_clock_and_risk_order_intent(
+def test_backtest_runtime_wires_simulated_clock_and_stdout_order_intent_egress(
     tmp_path: Path,
 ) -> None:
     source_root = write_strategy_package(tmp_path / "source")
@@ -38,7 +38,7 @@ def test_backtest_runtime_wires_simulated_clock_and_risk_order_intent(
     )
 
     deps = container.runtime_dependencies_initializer()
-    assert deps.risk_order_intent is not None
+    assert deps.risk_order_intent is None
     assert isinstance(deps.clock, SimulatedClock)
-    assert container.mode_policy.route_order_intent() is ServiceTarget.RISK_SERVICE
+    assert container.mode_policy.route_order_intent() is ServiceTarget.BACKTEST_RUNNER
     assert settings.launch_spec.mode is WorkerMode.BACKTEST

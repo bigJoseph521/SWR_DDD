@@ -21,7 +21,6 @@ _CANONICAL_IDENTITY_FIELDS = frozenset(
         "strategy_id",
         "deployment_id",
         "portfolio_id",
-        "risk_snapshot_id",
         "request_id",
         "runtime_type",
         "job_id",
@@ -71,7 +70,6 @@ class RuntimeLogContext:
     strategy_id: str | None = None
     deployment_id: str | None = None
     portfolio_id: str | None = None
-    risk_snapshot_id: str | None = None
     request_id: str | None = None
     runtime_type: str | None = "STRATEGY_WORKER_RUNTIME"
     job_id: str | None = None
@@ -126,11 +124,6 @@ class RuntimeLogContext:
         )
         object.__setattr__(
             self,
-            "risk_snapshot_id",
-            _normalize_optional(self.risk_snapshot_id, field_name="risk_snapshot_id"),
-        )
-        object.__setattr__(
-            self,
             "request_id",
             _normalize_optional(self.request_id, field_name="request_id"),
         )
@@ -167,8 +160,6 @@ class RuntimeLogContext:
             payload["deployment_id"] = self.deployment_id
         if self.portfolio_id is not None:
             payload["portfolio_id"] = self.portfolio_id
-        if self.risk_snapshot_id is not None:
-            payload["risk_snapshot_id"] = self.risk_snapshot_id
         if self.request_id is not None:
             payload["request_id"] = self.request_id
         if self.runtime_type is not None:

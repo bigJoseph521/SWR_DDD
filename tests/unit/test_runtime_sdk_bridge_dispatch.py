@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from alphovex_sdk.strategy.base import Strategy as SdkStrategy
 from runtime.application.strategy_execution.event_mapper import MarketBarEvent
 from runtime.domain.launch_spec import LaunchSpec
-from runtime.infrastructure.sdk.replay_sdk_bridge import build_replay_sdk_bridge
+from runtime.infrastructure.sdk.runtime_sdk_bridge import build_runtime_sdk_bridge
 from runtime.application.strategy_execution.strategy_adapter import StrategyAdapter
 from runtime.domain.enums import WorkerMode
 from runtime.domain.worker_identity import WorkerIdentity
@@ -65,13 +65,13 @@ def test_replay_bridge_dispatches_market_bar_to_on_bar() -> None:
     clock.set_time(datetime.now(timezone.utc))
 
     strat = _Strategy()
-    bridge = build_replay_sdk_bridge(
+    bridge = build_runtime_sdk_bridge(
         strategy=strat,
         launch_spec=launch,
         worker_identity=ident,
         simulated_clock=clock,
     )
-    adapter = StrategyAdapter(strategy=strat, replay_sdk_bridge=bridge)
+    adapter = StrategyAdapter(strategy=strat, runtime_sdk_bridge=bridge)
 
     result = adapter.on_event(
         {
@@ -137,13 +137,13 @@ def test_replay_bridge_dispatches_market_quote_to_on_quote() -> None:
     clock.set_time(datetime.now(timezone.utc))
 
     strat = _Strategy()
-    bridge = build_replay_sdk_bridge(
+    bridge = build_runtime_sdk_bridge(
         strategy=strat,
         launch_spec=launch,
         worker_identity=ident,
         simulated_clock=clock,
     )
-    adapter = StrategyAdapter(strategy=strat, replay_sdk_bridge=bridge)
+    adapter = StrategyAdapter(strategy=strat, runtime_sdk_bridge=bridge)
 
     result = adapter.on_event(
         {
@@ -206,13 +206,13 @@ def test_bind_and_start_runs_once_for_sdk_strategy() -> None:
     clock.set_time(datetime.now(timezone.utc))
 
     strat = _RecordingStrategy()
-    bridge = build_replay_sdk_bridge(
+    bridge = build_runtime_sdk_bridge(
         strategy=strat,
         launch_spec=launch,
         worker_identity=ident,
         simulated_clock=clock,
     )
-    adapter = StrategyAdapter(strategy=strat, replay_sdk_bridge=bridge)
+    adapter = StrategyAdapter(strategy=strat, runtime_sdk_bridge=bridge)
 
     first = adapter.bind_and_start()
     assert first.ok is True
@@ -245,13 +245,13 @@ def test_dispatch_on_bar_single_arg_sees_data_and_clock_after_state_apply() -> N
     clock.set_time(datetime(2020, 1, 1, tzinfo=timezone.utc))
 
     strat = _DataStrategy()
-    bridge = build_replay_sdk_bridge(
+    bridge = build_runtime_sdk_bridge(
         strategy=strat,
         launch_spec=launch,
         worker_identity=ident,
         simulated_clock=clock,
     )
-    adapter = StrategyAdapter(strategy=strat, replay_sdk_bridge=bridge)
+    adapter = StrategyAdapter(strategy=strat, runtime_sdk_bridge=bridge)
     assert adapter.bind_and_start().ok is True
 
     result = adapter.on_event(
@@ -286,13 +286,13 @@ def test_bar_instrument_id_matches_symbol_not_venue_numeric_id() -> None:
     clock.set_time(datetime(2020, 1, 1, tzinfo=timezone.utc))
 
     strat = _IdsStrategy()
-    bridge = build_replay_sdk_bridge(
+    bridge = build_runtime_sdk_bridge(
         strategy=strat,
         launch_spec=launch,
         worker_identity=ident,
         simulated_clock=clock,
     )
-    adapter = StrategyAdapter(strategy=strat, replay_sdk_bridge=bridge)
+    adapter = StrategyAdapter(strategy=strat, runtime_sdk_bridge=bridge)
     assert adapter.bind_and_start().ok is True
 
     ts_ms = 1_700_000_000_000
@@ -329,13 +329,13 @@ def test_bar_instrument_id_prefers_wire_id_for_backtest_nested_bar_payload() -> 
     clock.set_time(datetime(2020, 1, 1, tzinfo=timezone.utc))
 
     strat = _IdsStrategy()
-    bridge = build_replay_sdk_bridge(
+    bridge = build_runtime_sdk_bridge(
         strategy=strat,
         launch_spec=launch,
         worker_identity=ident,
         simulated_clock=clock,
     )
-    adapter = StrategyAdapter(strategy=strat, replay_sdk_bridge=bridge)
+    adapter = StrategyAdapter(strategy=strat, runtime_sdk_bridge=bridge)
     assert adapter.bind_and_start().ok is True
 
     ts_ms = 1_700_000_000_000

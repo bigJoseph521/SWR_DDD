@@ -6,7 +6,7 @@ import pytest
 from alphovex_sdk.context.indicator_context import DataSourceEnum
 from alphovex_sdk.indicators.trend import SMA
 from alphovex_sdk.models.market_data import Bar
-from runtime.infrastructure.strategy_loader.replay_runtime_support import IndicatorService
+from runtime.infrastructure.strategy_loader.runtime_stub_support import IndicatorService
 
 
 def _bar(*, close: float) -> Bar:

@@ -177,6 +177,8 @@ class ServiceTarget(StrEnum):
     STRATEGY_REGISTRY_SERVICE = "strategy-registry-service"
     MARKET_DATA_SERVICE = "market-data-service"
     RISK_SERVICE = "risk-service"
+    #: BACKTEST order intents egress to upstream runner via stdout JSONL.
+    BACKTEST_RUNNER = "backtest-runner"
 
 
 class DependencyAccessPattern(StrEnum):
@@ -208,7 +210,7 @@ MODE_ALLOWED_SERVICE_TARGETS: Final[dict[WorkerMode, frozenset[ServiceTarget]]] 
     WorkerMode.BACKTEST: frozenset(
         {
             ServiceTarget.STRATEGY_RUNTIME_MANAGER,
-            ServiceTarget.RISK_SERVICE,
+            ServiceTarget.BACKTEST_RUNNER,
         }
     ),
 }

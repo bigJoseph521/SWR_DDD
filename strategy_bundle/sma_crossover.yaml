@@ -1,19 +1,18 @@
 type: object
-title: SMACrossOverParameters
+title: MeanReversionStrategyParameters
 additionalProperties: false
-entrypoint: "sma_crossover:SMACrossOver"
-sdk_version: apexai-SDK-1.2.3
+
 required:
   - fast_period
   - slow_period
 
 properties:
   fast_period:
-    type: integer
+    type: int
     default: 10
     description: "SMA lookback for the fast line"
   slow_period:
-    type: integer
+    type: int
     default: 30
     description: "SMA lookback for the slow line"
 

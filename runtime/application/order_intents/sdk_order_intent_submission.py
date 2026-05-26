@@ -13,4 +13,4 @@ def safe_submit_sdk_order_intent(
     try:
         submit(intent)
     except Exception:
-        _LOG.exception("sdk_order_intent_grpc_submit_failed")
+        _LOG.exception("sdk_order_intent_submit_failed")

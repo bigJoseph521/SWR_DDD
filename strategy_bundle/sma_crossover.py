@@ -10,8 +10,10 @@ from alphovex_sdk import (
 class SMACrossOver(Strategy):
 
     def on_init(self) -> None:
+        print(f"----------params: {self.params}")
         self.fast = self.params.get("fast_period")
         self.slow = self.params.get("slow_period")
+        print(f"----------fast: {self.fast}, slow: {self.slow}")
         self.indicator.register_indicator("sma_fast", SMA(self.fast), DataSourceEnum.BAR)
         self.indicator.register_indicator("sma_slow", SMA(self.slow), DataSourceEnum.BAR)
         self.holding = False
@@ -19,6 +21,7 @@ class SMACrossOver(Strategy):
     def on_bar(self, bar: Bar) -> None:
         fast = self.indicator.get_indicator_value("sma_fast")
         slow = self.indicator.get_indicator_value("sma_slow")
+        print(f"----------fast: {fast}, slow: {slow}")
 
         if fast is None or slow is None:
             return

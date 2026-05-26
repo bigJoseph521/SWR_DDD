@@ -775,8 +775,10 @@ class LifecycleService:
         adapter = self._strategy_adapter
         if adapter is None:
             return
-        bridge = getattr(adapter, "_backtest_sdk_bridge", None) or getattr(
-            adapter, "_replay_sdk_bridge", None
+        bridge = (
+            getattr(adapter, "_runtime_sdk_bridge", None)
+            or getattr(adapter, "_backtest_sdk_bridge", None)
+            or getattr(adapter, "_replay_sdk_bridge", None)
         )
         if bridge is None:
             return

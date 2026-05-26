@@ -39,7 +39,7 @@ from runtime.infrastructure.observability.domain_events import (
     DomainEventSampler,
     emit_bound_domain_event,
 )
-from runtime.infrastructure.sdk.replay_sdk_bridge import build_replay_sdk_bridge
+from runtime.infrastructure.sdk.runtime_sdk_bridge import build_runtime_sdk_bridge
 
 from runtime.application.lifecycle.bootstrap_stages import (
     BOOTSTRAP_STAGE_ORDER,
@@ -222,7 +222,7 @@ class SdkBridgeFactoryAdapter:
             default_tf = calculation_spec.bar_timeframe
         elif wrs is not None:
             default_tf = str(getattr(wrs, "replay_bar_timeframe", None) or "1m")
-        bridge = build_replay_sdk_bridge(
+        bridge = build_runtime_sdk_bridge(
             strategy=strategy_instance,
             launch_spec=launch,  # type: ignore[arg-type]
             worker_identity=worker_identity,

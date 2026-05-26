@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from runtime.infrastructure.sdk.replay_sdk_bridge import (
+from runtime.infrastructure.sdk.runtime_sdk_bridge import (
     merge_parameter_schema_with_strategy_overrides,
     strategy_parameter_overrides_from_launch_payload,
 )
