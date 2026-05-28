@@ -46,7 +46,9 @@ def _import_main_with_stubs() -> Any:
         def close(self) -> None:
             return None
 
-    manager_client_mod = types.ModuleType("runtime.infrastructure.http.srm.manager_client")
+    manager_client_mod = types.ModuleType(
+        "runtime.infrastructure.http.srm.manager_client"
+    )
     setattr(
         manager_client_mod,
         "build_manager_client",
@@ -56,9 +58,7 @@ def _import_main_with_stubs() -> Any:
     setattr(manager_client_mod, "SrmHeartbeatHttpClient", _NoopManagerClient)
     sys.modules["runtime.infrastructure.http.srm.manager_client"] = manager_client_mod
 
-    risk_mod = types.ModuleType(
-        "runtime.infrastructure.grpc.risk_order_intent_client"
-    )
+    risk_mod = types.ModuleType("runtime.infrastructure.grpc.risk_order_intent_client")
     setattr(
         risk_mod,
         "build_risk_order_intent_grpc_client",
@@ -166,9 +166,7 @@ def test_main_emits_bootstrap_failed_when_load_settings_fails(monkeypatch) -> No
     monkeypatch.setenv("STRATEGY_RUNTIME_MANAGER_BASE_URL", "http://127.0.0.1:8080")
     _import_main_with_stubs()
     client = _RecordingManagerClient()
-    monkeypatch.setattr(
-        runtime_entrypoint, "build_manager_client", lambda **_k: client
-    )
+    monkeypatch.setattr(runtime_entrypoint, "build_manager_client", lambda **_k: client)
     monkeypatch.setattr(
         runtime_entrypoint,
         "load_settings",
@@ -198,7 +196,9 @@ def test_main_emits_bootstrap_failed_when_load_settings_fails(monkeypatch) -> No
         runtime_entrypoint, "report_minimal_env_validation_to_srm", lambda _r: None
     )
     monkeypatch.setattr(
-        runtime_entrypoint, "print_minimal_env_validation_outcome", lambda *_a, **_k: None
+        runtime_entrypoint,
+        "print_minimal_env_validation_outcome",
+        lambda *_a, **_k: None,
     )
 
     with pytest.raises(SystemExit) as exc_info:

@@ -6,7 +6,9 @@ from hashlib import sha256
 from typing import Callable
 
 from runtime.application.strategy_execution.strategy_adapter import StrategyAdapter
-from runtime.application.strategy_execution.strategy_error_boundary import StrategyCallResult
+from runtime.application.strategy_execution.strategy_error_boundary import (
+    StrategyCallResult,
+)
 from runtime.domain.enums import WorkerMode
 from runtime.domain.errors import SingleAssignmentViolationError
 

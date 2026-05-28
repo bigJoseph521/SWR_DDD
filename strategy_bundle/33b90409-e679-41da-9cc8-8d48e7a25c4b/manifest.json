@@ -1,0 +1,50 @@
+{
+  "backtest_job_id": "33b90409-e679-41da-9cc8-8d48e7a25c4b",
+  "runtime_id": "2f2b8d69-da23-4ff5-9abb-7005e19b3357",
+  "artifact_root_uri": "file:///home/akao/Documents/smart_trading/services/python/strategy-worker-runtime/strategy_bundle/33b90409-e679-41da-9cc8-8d48e7a25c4b",
+  "manifest_uri": "file:///home/akao/Documents/smart_trading/services/python/strategy-worker-runtime/strategy_bundle/33b90409-e679-41da-9cc8-8d48e7a25c4b/manifest.json",
+  "summary_uri": "file:///home/akao/Documents/smart_trading/services/python/strategy-worker-runtime/strategy_bundle/33b90409-e679-41da-9cc8-8d48e7a25c4b/summary.json",
+  "files": [
+    {
+      "relative_path": "manifest.json",
+      "kind": "MANIFEST",
+      "format": "JSON",
+      "schema_version": "1",
+      "row_count": 1
+    },
+    {
+      "relative_path": "summary.json",
+      "kind": "RESULT_SUMMARY",
+      "format": "JSON",
+      "schema_version": "1",
+      "row_count": 1,
+      "byte_length": 572
+    },
+    {
+      "relative_path": "equity_curve_1d.json",
+      "kind": "EQUITY_CURVE",
+      "format": "JSON",
+      "schema_version": "chart_series@v1",
+      "row_count": 1,
+      "byte_length": 152
+    },
+    {
+      "relative_path": "drawdown_curve_1d.json",
+      "kind": "DRAWDOWN_CURVE",
+      "format": "JSON",
+      "schema_version": "chart_series@v1",
+      "row_count": 1,
+      "byte_length": 152
+    },
+    {
+      "relative_path": "portfolio_snapshots.jsonl",
+      "kind": "PORTFOLIO_SNAPSHOTS",
+      "format": "JSONL",
+      "schema_version": "1",
+      "row_count": 1,
+      "byte_length": 415
+    }
+  ],
+  "created_at": "2026-05-26T07:31:24.710407595Z",
+  "schema_version": "1"
+}

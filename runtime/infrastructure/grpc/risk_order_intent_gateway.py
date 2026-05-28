@@ -83,7 +83,7 @@ class RiskOrderIntentGateway:
         try:
             cb("risk", dict(payload), _coerce_submit_result_dict(result))
         except Exception:
-            _LOG.exception("risk_order_intent_journal_callback_failed")
+            _LOG.error("risk_order_intent_journal_callback_failed", exc_info=False)
 
     def submit_order_intent_wire(self, payload: Mapping[str, Any]) -> Any:
         """Submit a Risk Service wire payload (built by infrastructure mappers)."""

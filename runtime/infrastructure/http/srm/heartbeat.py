@@ -23,6 +23,10 @@ _ALLOWED_SRM_STATUS_SOURCES: Final[frozenset[SrmStatusSource]] = frozenset(
     {SRM_STATUS_SOURCE_HEARTBEAT, SRM_STATUS_SOURCE_UPDATE}
 )
 
+_SRM_STATUS_SIGNAL_TYPES: Final[frozenset[str]] = frozenset(
+    {"heartbeat", "bootstrap_succeeded", "bootstrap_failed"}
+)
+
 HEADER_REQUEST_ID = "x-request-id"
 HEADER_CORRELATION_ID = "x-correlation-id"
 HEADER_SERVICE_NAME = "x-service-name"
@@ -121,6 +125,115 @@ def build_srm_heartbeat_body(
     }
 
 
+def build_srm_status_body_from_signal_envelope(
+    envelope: Mapping[str, Any],
+    *,
+    owner_resource_id: str,
+) -> dict[str, Any]:
+    """
+    Build the JSON body for ``POST /internal/v1/runtimes/{runtime_id}/status``.
+
+    Used for periodic heartbeats and bootstrap success/failure status updates.
+    """
+    signal_type = str(envelope.get("signal_type") or "").strip()
+    if signal_type not in _SRM_STATUS_SIGNAL_TYPES:
+        raise ValueError(
+            f"Unsupported SRM status signal_type: {signal_type!r} "
+            f"(expected one of {sorted(_SRM_STATUS_SIGNAL_TYPES)})"
+        )
+
+    identity = envelope.get("identity")
+    payload = envelope.get("payload")
+    if not isinstance(identity, Mapping):
+        raise ValueError("signal envelope must include identity mapping")
+    if not isinstance(payload, Mapping):
+        raise ValueError("signal envelope must include payload mapping")
+
+    runtime_id = str(identity.get("runtime_id") or "").strip()
+    mode = str(identity.get("mode") or "").strip().upper()
+    if not runtime_id:
+        raise ValueError("runtime_id is required for SRM status report")
+    if not owner_resource_id.strip():
+        raise ValueError("owner_resource_id is required for SRM status report")
+
+    observed_raw = payload.get("observed_at")
+    if observed_raw is None:
+        observed_raw = payload.get("occurred_at")
+    if not isinstance(observed_raw, datetime):
+        raise ValueError(
+            f"payload.observed_at or payload.occurred_at must be datetime for {signal_type}"
+        )
+
+    if signal_type == "bootstrap_succeeded":
+        return build_srm_heartbeat_body(
+            runtime_id=runtime_id,
+            mode=mode,
+            owner_resource_id=owner_resource_id,
+            local_state="RUNNING",
+            observed_at=observed_raw,
+            source=SRM_STATUS_SOURCE_UPDATE,
+            runtime_status="RUNNING",
+            health_status="HEALTHY",
+            metadata_empty=True,
+        )
+
+    if signal_type == "bootstrap_failed":
+        reason_code_raw = payload.get("reason_code")
+        message_raw = payload.get("message")
+        details = payload.get("details")
+        message = (
+            str(message_raw).strip()
+            if message_raw is not None
+            else (str(details) if details is not None and str(details).strip() else "")
+        )
+        retryable_raw = payload.get("retryable")
+        retryable = retryable_raw if isinstance(retryable_raw, bool) else False
+        return build_srm_heartbeat_body(
+            runtime_id=runtime_id,
+            mode=mode,
+            owner_resource_id=owner_resource_id,
+            local_state="STARTUP_FAILED",
+            observed_at=observed_raw,
+            source=SRM_STATUS_SOURCE_UPDATE,
+            runtime_status="STARTUP_FAILED",
+            health_status="UNHEALTHY",
+            reason_code=(str(reason_code_raw) if reason_code_raw is not None else None),
+            message=message or None,
+            retryable=retryable,
+        )
+
+    source_raw = payload.get("source")
+    reason_code_raw = payload.get("reason_code")
+    message_raw = payload.get("message")
+    runtime_status_raw = payload.get("runtime_status")
+    health_status_raw = payload.get("health_status")
+    retryable_raw = payload.get("retryable")
+    retryable: bool | None = retryable_raw if isinstance(retryable_raw, bool) else None
+    return build_srm_heartbeat_body(
+        runtime_id=runtime_id,
+        mode=mode,
+        owner_resource_id=owner_resource_id,
+        local_state=(
+            str(payload.get("local_state"))
+            if payload.get("local_state") is not None
+            else None
+        ),
+        observed_at=observed_raw,
+        source=normalize_srm_status_source(
+            str(source_raw) if source_raw is not None else None
+        ),
+        runtime_status=(
+            str(runtime_status_raw) if runtime_status_raw is not None else None
+        ),
+        health_status=(
+            str(health_status_raw) if health_status_raw is not None else None
+        ),
+        reason_code=(str(reason_code_raw) if reason_code_raw is not None else None),
+        message=(str(message_raw) if message_raw is not None else None),
+        retryable=retryable,
+    )
+
+
 def post_srm_runtime_status(
     *,
     base_url: str,
@@ -176,7 +289,6 @@ def post_srm_runtime_status(
         )
         return _map_http_result(int(exc.code or 0), err_body)
     except urllib.error.URLError as exc:
-        _LOG.warning("srm_runtime_status_unreachable", exc_info=True)
         return {
             "accepted": False,
             "signal_type": "heartbeat",
@@ -287,7 +399,7 @@ class SrmHeartbeatHttpClient:
 
     def emit_signal(self, envelope: Mapping[str, Any]) -> dict[str, Any]:
         signal_type = str(envelope.get("signal_type") or "")
-        if signal_type != "heartbeat":
+        if signal_type not in _SRM_STATUS_SIGNAL_TYPES:
             return {
                 "accepted": False,
                 "signal_type": signal_type,
@@ -295,71 +407,34 @@ class SrmHeartbeatHttpClient:
             }
 
         identity = envelope.get("identity")
-        payload = envelope.get("payload")
         if not isinstance(identity, Mapping):
             raise ValueError("signal envelope must include identity mapping")
-        if not isinstance(payload, Mapping):
-            raise ValueError("signal envelope must include payload mapping")
 
         mode = str(identity.get("mode") or "").strip().upper()
         if mode == WorkerMode.BACKTEST.value:
-            return {"accepted": True, "signal_type": "heartbeat", "skipped": True}
+            return {"accepted": True, "signal_type": signal_type, "skipped": True}
 
         if not self._base_url:
             return {
                 "accepted": False,
-                "signal_type": "heartbeat",
+                "signal_type": signal_type,
                 "reason_code": "SRM_BASE_URL_NOT_CONFIGURED",
             }
 
         runtime_id = str(identity.get("runtime_id") or "").strip()
         if not runtime_id:
-            raise ValueError("runtime_id is required for SRM heartbeat")
+            raise ValueError("runtime_id is required for SRM status report")
 
         if not self._owner_resource_id:
             return {
                 "accepted": False,
-                "signal_type": "heartbeat",
+                "signal_type": signal_type,
                 "reason_code": "OWNER_RESOURCE_ID_REQUIRED",
             }
 
-        observed_at = payload.get("observed_at")
-        if not isinstance(observed_at, datetime):
-            raise ValueError("heartbeat payload.observed_at must be datetime")
-
-        reason_code_raw = payload.get("reason_code")
-        message_raw = payload.get("message")
-        source_raw = payload.get("source")
-        runtime_status_raw = payload.get("runtime_status")
-        health_status_raw = payload.get("health_status")
-        retryable_raw = payload.get("retryable")
-        retryable: bool | None
-        if isinstance(retryable_raw, bool):
-            retryable = retryable_raw
-        else:
-            retryable = None
-        body = build_srm_heartbeat_body(
-            runtime_id=runtime_id,
-            mode=mode,
+        body = build_srm_status_body_from_signal_envelope(
+            envelope,
             owner_resource_id=self._owner_resource_id,
-            local_state=(
-                str(payload.get("local_state"))
-                if payload.get("local_state") is not None
-                else None
-            ),
-            observed_at=observed_at,
-            source=normalize_srm_status_source(
-                str(source_raw) if source_raw is not None else None
-            ),
-            runtime_status=(
-                str(runtime_status_raw) if runtime_status_raw is not None else None
-            ),
-            health_status=(
-                str(health_status_raw) if health_status_raw is not None else None
-            ),
-            reason_code=(str(reason_code_raw) if reason_code_raw is not None else None),
-            message=(str(message_raw) if message_raw is not None else None),
-            retryable=retryable,
         )
         raw = json.dumps(body, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
         url = join_runtime_status_url(self._base_url, runtime_id)
@@ -384,7 +459,6 @@ class SrmHeartbeatHttpClient:
             )
             return _map_http_result(int(exc.code or 0), err_body)
         except urllib.error.URLError as exc:
-            _LOG.warning("srm_heartbeat_unreachable", exc_info=True)
             return {
                 "accepted": False,
                 "signal_type": "heartbeat",

@@ -10,9 +10,13 @@ from runtime.application.strategy_execution.event_mapper import (
     MarketQuoteEvent,
     MarketTickEvent,
 )
-from runtime.application.strategy_execution.event_mapper import TimerEvent as WireTimerEvent
+from runtime.application.strategy_execution.event_mapper import (
+    TimerEvent as WireTimerEvent,
+)
 from runtime.application.ports.backtest_sdk_bridge_port import BacktestSdkBridgePort
-from runtime.application.strategy_execution.sdk_hook_utils import replay_sdk_hook_overridden
+from runtime.application.strategy_execution.sdk_hook_utils import (
+    replay_sdk_hook_overridden,
+)
 from runtime.application.strategy_execution.strategy_error_boundary import (
     StrategyCallResult,
     StrategyErrorBoundary,

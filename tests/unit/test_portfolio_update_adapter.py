@@ -91,9 +91,7 @@ def test_matching_job_id_updates_runtime_context() -> None:
         context_updater=SdkAccountContextUpdater(account),
     )
 
-    parsed = parse_portfolio_update_message(
-        _valid_payload(), expected_job_id=JOB_ID
-    )
+    parsed = parse_portfolio_update_message(_valid_payload(), expected_job_id=JOB_ID)
     assert parsed.event is not None
     handler.handle(parsed.event)
 

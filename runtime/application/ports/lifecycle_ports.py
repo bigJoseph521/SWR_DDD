@@ -183,7 +183,9 @@ class SdkBridgeFactoryPort(Protocol):
         latest_market_event_at: Callable[[], datetime | None] | None,
         allocate_order_intent_id: Callable[[], str] | None,
         platform_trace: PlatformTraceSpec | None,
-    ) -> tuple[BacktestSdkBridgePort | None, Callable[[Any], dict[str, Any]] | None]: ...
+    ) -> tuple[
+        BacktestSdkBridgePort | None, Callable[[Any], dict[str, Any]] | None
+    ]: ...
 
     def platform_trace(
         self, worker_config: WorkerRuntimeConfigPort | None
@@ -195,7 +197,9 @@ class SdkBridgeFactoryPort(Protocol):
 
 
 class BacktestBarTimeframeFilterPort(Protocol):
-    def should_skip(self, tick: Mapping[str, Any], *, expected_bar_timeframe: str) -> bool: ...
+    def should_skip(
+        self, tick: Mapping[str, Any], *, expected_bar_timeframe: str
+    ) -> bool: ...
 
 
 # Backward-compat alias.

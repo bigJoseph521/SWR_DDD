@@ -54,7 +54,6 @@ def strategy_order_intent_from_sdk(intent: Any) -> StrategyOrderIntent:
     """Map SDK / duck-typed order intent objects to :class:`StrategyOrderIntent`."""
     limit = getattr(intent, "limit_price", None)
     stop = getattr(intent, "stop_price", None)
-    ref_price = getattr(intent, "price", None)
     qty = getattr(intent, "quantity", None)
     if qty is None:
         qty = getattr(intent, "qty", None)

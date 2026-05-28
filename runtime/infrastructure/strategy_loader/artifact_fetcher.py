@@ -9,7 +9,9 @@ from typing import Any, Mapping, Protocol
 from urllib.parse import unquote, urlparse
 from urllib.request import url2pathname
 
-from runtime.infrastructure.strategy_loader.digest_validation_env import skip_artifact_digest_validation
+from runtime.infrastructure.strategy_loader.digest_validation_env import (
+    skip_artifact_digest_validation,
+)
 from runtime.domain.bootstrap_failures import ArtifactFetchFailure
 from runtime.domain.launch_spec import LaunchSpec
 from runtime.infrastructure.sdk.strategy_params_yaml import (

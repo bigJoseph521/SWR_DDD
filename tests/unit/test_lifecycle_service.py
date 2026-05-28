@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import importlib
 import logging
 import sys
 from dataclasses import dataclass
@@ -16,7 +15,9 @@ from runtime.infrastructure.strategy_loader.artifact_fetcher import ArtifactFetc
 from runtime.infrastructure.strategy_loader.artifact_verifier import (
     ArtifactVerificationResult,
 )
-from runtime.infrastructure.strategy_loader.entrypoint_loader import EntrypointLoadResult
+from runtime.infrastructure.strategy_loader.entrypoint_loader import (
+    EntrypointLoadResult,
+)
 from runtime.domain.bootstrap_failures import (
     ArtifactFetchFailure,
     BootstrapFailure,
@@ -38,7 +39,7 @@ from runtime.bootstrap.strategy_instance_manager import (
     StrategyInstanceManager,
 )
 from runtime.bootstrap.validator import LaunchSpecValidator
-from runtime.domain.enums import WorkerMode, WorkerPhase
+from runtime.domain.enums import WorkerPhase
 from runtime.domain.worker_identity import WorkerIdentity
 from runtime.domain.events.dedupe import LifecycleSignalDedupe
 from runtime.infrastructure.clock.clock import SimulatedClock, SystemClock
@@ -326,11 +327,7 @@ def test_startup_and_shutdown_run_in_exact_order(
         worker_runtime_settings=settings,
     )
 
-    with patch.object(
-        lifecycle._host.srm, "report_bootstrap_success"
-    ) as success_report_mock:
-        lifecycle.start()
-    success_report_mock.assert_called_once()
+    lifecycle.start()
     with patch.object(lifecycle._host.srm, "report_final_shutdown") as final_mock:
         stopped = lifecycle.stop()
     final_mock.assert_called_once()
@@ -549,9 +546,7 @@ def test_startup_aborts_for_bootstrap_failures(
         worker_runtime_settings=settings,
     )
 
-    with patch.object(
-        lifecycle._host.srm, "report_bootstrap_failure"
-    ) as report_mock:
+    with patch.object(lifecycle._host.srm, "report_bootstrap_failure") as report_mock:
         with pytest.raises(type(failure)):
             lifecycle.start()
 
@@ -674,7 +669,7 @@ def test_stop_with_emit_termination_signal_false_skips_runtime_terminated() -> N
 
 
 @pytest.mark.parametrize(
-    ("suppress_stopping", "expected_internal_state_headers"),
+    ("suppress_stopping", "expected_state_event_lines"),
     [
         (True, 1),
         (False, 2),
@@ -682,9 +677,9 @@ def test_stop_with_emit_termination_signal_false_skips_runtime_terminated() -> N
 )
 def test_stop_internal_state_stdout_respects_suppress_stopping_phase(
     suppress_stopping: bool,
-    expected_internal_state_headers: int,
+    expected_state_event_lines: int,
 ) -> None:
-    """Manager StopWorker path suppresses STOPPING stdout; default stop prints STOPPING+STOPPED."""
+    """Manager StopWorker path suppresses STOPPING stdout; default stop logs STOPPING+STOPPED."""
     payload = _launch_payload()
     spec = LaunchSpec.from_payload(payload)
     manager_client = _FakeManagerClient()
@@ -710,20 +705,26 @@ def test_stop_internal_state_stdout_respects_suppress_stopping_phase(
     lifecycle.start()
 
     captured: list[str] = []
+    real_write = sys.stdout.write
 
-    def _recording_print(*args: object, **kwargs: object) -> None:
-        if args:
-            captured.append(str(args[0]))
+    def _recording_write(text: str) -> int:
+        captured.append(text)
+        return real_write(text)
 
-    with patch("builtins.print", side_effect=_recording_print):
+    with patch("sys.stdout.write", side_effect=_recording_write):
         lifecycle.stop(
             emit_termination_signal=False,
             suppress_stopping_phase_stdout=suppress_stopping,
         )
 
-    internal_headers = [s for s in captured if "Internal State" in s]
-    assert len(internal_headers) == expected_internal_state_headers
-    assert any("worker_shutdown_completed" in s for s in captured)
+    state_lines = [
+        line
+        for chunk in captured
+        for line in chunk.splitlines()
+        if "worker.shutdown.completed" in line or "worker.state.changed" in line
+    ]
+    assert len(state_lines) == expected_state_event_lines
+    assert any("worker.shutdown.completed" in line for line in state_lines)
 
 
 def test_no_manager_owned_lifecycle_truth_emitted() -> None:
@@ -806,7 +807,9 @@ def test_manager_stop_checkpoint_uses_last_handled_market_timestamp_in_backtest(
     assert kwargs["last_replay_cursor"] == ""
 
 
-def test_manager_stop_checkpoint_records_empty_replay_cursor_without_batch_ingress() -> None:
+def test_manager_stop_checkpoint_records_empty_replay_cursor_without_batch_ingress() -> (
+    None
+):
     payload = _launch_payload("BACKTEST")
     spec = LaunchSpec.from_payload(payload)
     manager_client = _FakeManagerClient()

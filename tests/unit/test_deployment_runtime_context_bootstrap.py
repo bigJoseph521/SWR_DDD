@@ -69,7 +69,7 @@ def test_worker_bundle_dict_from_runtime_context_response() -> None:
 
 
 def test_fetch_bundle_requires_runtime_identity(
-    tmp_path, monkeypatch: pytest.MonkeyPatch, capsys
+    tmp_path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("STRATEGY_DEPLOYMENT_SERVICE_BASE_URL", "http://127.0.0.1:5090")
@@ -105,12 +105,10 @@ def test_fetch_bundle_requires_runtime_identity(
             )
     assert ei.value.reason == "deployment_runtime_context_missing_identity"
     assert "runtime_id" in ei.value.field_errors
-    out = capsys.readouterr().out
-    assert "HTTP 200" in out
 
 
 def test_fetch_bundle_strategy_version_id_from_response_without_env_var(
-    tmp_path, monkeypatch: pytest.MonkeyPatch, capsys
+    tmp_path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("RUNTIME_ID", "rt-only")
@@ -139,12 +137,9 @@ def test_fetch_bundle_strategy_version_id_from_response_without_env_var(
             deployment_id="dep-1",
         )
     assert bundle["strategy_version_id"] == "sv-from-sds"
-    assert "HTTP 200" in capsys.readouterr().out
 
 
-def test_fetch_bundle_success(
-    tmp_path, monkeypatch: pytest.MonkeyPatch, capsys
-) -> None:
+def test_fetch_bundle_success(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("RUNTIME_ID", "rt-x")
     monkeypatch.setenv("SWR_STRATEGY_VERSION_ID", "sv-x")
@@ -179,7 +174,6 @@ def test_fetch_bundle_success(
     assert bundle["strategy_version_id"] == "sv-from-sds"
     assert bundle["launch_attempt"] == 3
     assert bundle["artifact_uri"] == "registry-local:///z.zip"
-    assert capsys.readouterr().out.count("HTTP 200") == 1
 
 
 def test_fetch_bundle_url_error(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:

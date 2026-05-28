@@ -111,7 +111,6 @@ class SrmLifecycleHttpClient:
             result["signal_type"] = signal_type
             return result
         except urllib.error.URLError as exc:
-            _LOG.warning("srm_lifecycle_unreachable", exc_info=True)
             return {
                 "accepted": False,
                 "signal_type": signal_type,

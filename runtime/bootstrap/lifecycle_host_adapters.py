@@ -6,7 +6,6 @@ from typing import Any, Callable, Mapping
 from runtime.application.ports.launch_context import LaunchContext
 from runtime.application.ports.backtest_sdk_bridge_port import BacktestSdkBridgePort
 from runtime.application.ports.worker_domain_events import StrategyWorkerDomainEvent
-from runtime.application.time_conversion import utc_from_epoch_seconds
 from runtime.infrastructure.backtest.backtest_bar_timeframe_filter import (
     should_skip_backtest_historical_market_event,
 )
@@ -31,24 +30,17 @@ from runtime.domain.model.platform_trace_spec import PlatformTraceSpec
 from runtime.domain.worker_identity import WorkerIdentity
 from runtime.infrastructure.clock.clock import SimulatedClock
 from runtime.infrastructure.config.settings import Settings
-from runtime.infrastructure.http.srm.heartbeat import (
-    SRM_STATUS_SOURCE_HEARTBEAT,
-    SRM_STATUS_SOURCE_UPDATE,
-)
 from runtime.infrastructure.observability.domain_events import (
     DomainEventSampler,
     emit_bound_domain_event,
 )
 from runtime.infrastructure.sdk.runtime_sdk_bridge import build_runtime_sdk_bridge
 
-from runtime.application.lifecycle.bootstrap_stages import (
-    BOOTSTRAP_STAGE_ORDER,
-    classify_bootstrap_stages,
-)
-
 
 class BacktestBarTimeframeFilterAdapter:
-    def should_skip(self, tick: Mapping[str, Any], *, expected_bar_timeframe: str) -> bool:
+    def should_skip(
+        self, tick: Mapping[str, Any], *, expected_bar_timeframe: str
+    ) -> bool:
         return should_skip_backtest_historical_market_event(
             tick, expected_bar_timeframe=expected_bar_timeframe
         )
@@ -241,7 +233,9 @@ class SdkBridgeFactoryAdapter:
 
     def calculation_bar_timeframe(self, worker_config: object | None) -> str | None:
         if isinstance(worker_config, Settings):
-            return build_runtime_specs_from_settings(worker_config).calculation.bar_timeframe
+            return build_runtime_specs_from_settings(
+                worker_config
+            ).calculation.bar_timeframe
         return None
 
 
@@ -269,5 +263,3 @@ class SimulatedClockFactoryAdapter:
 
     def is_simulated(self, clock: object) -> bool:
         return isinstance(clock, SimulatedClock)
-
-

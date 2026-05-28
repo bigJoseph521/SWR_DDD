@@ -4,7 +4,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from runtime.infrastructure.grpc.risk_order_intent_client import RiskOrderIntentGrpcClient
+from runtime.infrastructure.grpc.risk_order_intent_client import (
+    RiskOrderIntentGrpcClient,
+)
 from runtime.infrastructure.grpc.serializers import risk_worker_pb2
 
 

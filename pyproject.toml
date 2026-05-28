@@ -20,6 +20,7 @@ dependencies = [
     "redis==7.4.0",
     "SQLAlchemy==2.0.48",
     "typing_extensions==4.15.0",
+    "colorlog==6.10.1",
 ]
 
 [project.optional-dependencies]
@@ -54,7 +55,12 @@ markers = [
 
 [tool.ruff]
 # Generated protobuf / gRPC stubs; do not hand-edit (regenerated from .proto).
-extend-exclude = ["protos/generated", "strategy_bundle"]
+extend-exclude = [
+    "protos/generated",
+    "strategy_bundle",
+    "runtime/infrastructure/grpc/risk_worker_pb2.py",
+    "runtime/infrastructure/grpc/risk_worker_pb2_grpc.py",
+]
 
 [tool.mypy]
 python_version = "3.12"
@@ -67,7 +73,11 @@ exclude = ["^protos/generated/", "^mock_server/runtime_manager/"]
 profile = "black"
 
 [tool.ruff.format]
-exclude = ["protos/generated"]
+exclude = [
+    "protos/generated",
+    "runtime/infrastructure/grpc/risk_worker_pb2.py",
+    "runtime/infrastructure/grpc/risk_worker_pb2_grpc.py",
+]
 
 [tool.ruff.lint.per-file-ignores]
 # Intentionally broken strategy artifacts for contract / runtime tests.

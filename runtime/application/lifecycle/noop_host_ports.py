@@ -1,25 +1,16 @@
 from __future__ import annotations
 
-from typing import Any
 
 from runtime.application.ports.lifecycle_ports import (
-    DomainEventEmitterPort,
     LifecycleHostPorts,
-    BacktestBarTimeframeFilterPort,
-    SdkBridgeFactoryPort,
-    SimulatedClockFactoryPort,
-    SrmLifecycleReporterPort,
 )
 from runtime.application.lifecycle.bootstrap_stages import (
-    BOOTSTRAP_STAGE_ORDER,
     classify_bootstrap_stages,
 )
 
 
 class _NoopBacktestBarTimeframeFilter:
-    def should_skip(
-        self, tick: object, *, expected_bar_timeframe: str
-    ) -> bool:
+    def should_skip(self, tick: object, *, expected_bar_timeframe: str) -> bool:
         return False
 
 

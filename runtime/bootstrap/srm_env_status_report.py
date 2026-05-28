@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from datetime import datetime, timezone
 from typing import Any, Final
 
@@ -39,6 +38,7 @@ from runtime.infrastructure.http.srm.heartbeat import (
     build_srm_heartbeat_body,
     post_srm_runtime_status,
 )
+from runtime.infrastructure.observability.stdout_event import write_stdout_event
 
 RUNTIME_CONTEXT_FETCH_FAILURE_REASONS: Final[frozenset[str]] = frozenset(
     {
@@ -556,29 +556,28 @@ def print_shutdown_status_outcome(
     message: str,
     srm_response: dict[str, object] | None,
 ) -> None:
-    payload: dict[str, object] = {
-        "event_name": "worker_shutdown_status",
-        "runtime_status": runtime_status,
-        "reason_code": reason_code,
-        "message": message,
-    }
-    if srm_response is not None:
-        payload["srm_status_report"] = srm_response
-    print(json.dumps(payload, separators=(",", ":"), ensure_ascii=True), flush=True)
+    write_stdout_event(
+        level="INFO",
+        event_name="worker.shutdown.status",
+        message=message,
+        runtime_status=runtime_status,
+        reason_code=reason_code,
+        srm_status_report=srm_response,
+    )
 
 
 def print_bootstrap_success_outcome(
     *,
     srm_response: dict[str, object] | None,
 ) -> None:
-    payload: dict[str, object] = {
-        "event_name": "worker_bootstrap_succeeded",
-        "runtime_status": RUNTIME_STATUS_RUNNING,
-        "health_status": HEALTH_STATUS_HEALTHY,
-    }
-    if srm_response is not None:
-        payload["srm_status_report"] = srm_response
-    print(json.dumps(payload, separators=(",", ":"), ensure_ascii=True), flush=True)
+    write_stdout_event(
+        level="INFO",
+        event_name="worker.bootstrap.succeeded",
+        message="Bootstrap succeeded",
+        runtime_status=RUNTIME_STATUS_RUNNING,
+        health_status=HEALTH_STATUS_HEALTHY,
+        srm_status_report=srm_response,
+    )
 
 
 def print_bootstrap_failure_outcome(
@@ -586,17 +585,15 @@ def print_bootstrap_failure_outcome(
     *,
     srm_response: dict[str, object] | None,
 ) -> None:
-    payload: dict[str, object] = {
-        "event_name": "worker_bootstrap_failed",
-        "stage": failure.stage.value,
-        "reason": failure.reason_code,
-        "message": build_bootstrap_failure_message(failure),
-        "reason_code": bootstrap_failure_srm_reason_code(failure),
-        "retryable": False,
-    }
-    if srm_response is not None:
-        payload["srm_status_report"] = srm_response
-    print(json.dumps(payload, separators=(",", ":"), ensure_ascii=True), flush=True)
+    write_stdout_event(
+        level="ERROR",
+        event_name="worker.bootstrap.failed",
+        message=build_bootstrap_failure_message(failure),
+        stage=failure.stage.value,
+        reason_code=bootstrap_failure_srm_reason_code(failure),
+        retryable=False,
+        srm_status_report=srm_response,
+    )
 
 
 def report_minimal_env_validation_to_srm(
@@ -657,15 +654,15 @@ def print_minimal_env_validation_outcome(
     *,
     srm_response: dict[str, object] | None,
 ) -> None:
-    payload: dict[str, object] = {
-        "event_name": "worker_minimal_env_validation",
-        "valid": result.valid,
-        "message": result.message,
-        "field_errors": dict(result.field_errors),
-    }
-    if srm_response is not None:
-        payload["srm_status_report"] = srm_response
-    print(json.dumps(payload, separators=(",", ":"), ensure_ascii=True), flush=True)
+    write_stdout_event(
+        level="INFO" if result.valid else "ERROR",
+        event_name="worker.env.validation",
+        message=result.message,
+        valid=result.valid,
+        reason_code=None if result.valid else SWR_ENV_VALIDATION_FAILED,
+        field_errors=dict(result.field_errors) if result.field_errors else None,
+        srm_status_report=srm_response,
+    )
 
 
 def print_runtime_context_fetch_failure_outcome(
@@ -674,14 +671,13 @@ def print_runtime_context_fetch_failure_outcome(
     srm_response: dict[str, object] | None,
 ) -> None:
     reason_code, retryable = runtime_context_failure_status(exc)
-    payload: dict[str, object] = {
-        "event_name": "worker_runtime_context_fetch_failed",
-        "reason": exc.reason,
-        "message": build_runtime_context_fetch_failure_message(exc),
-        "field_errors": dict(exc.field_errors),
-        "reason_code": reason_code,
-        "retryable": retryable,
-    }
-    if srm_response is not None:
-        payload["srm_status_report"] = srm_response
-    print(json.dumps(payload, separators=(",", ":"), ensure_ascii=True), flush=True)
+    write_stdout_event(
+        level="ERROR",
+        event_name="worker.runtime_context.fetch_failed",
+        message=build_runtime_context_fetch_failure_message(exc),
+        reason=exc.reason,
+        reason_code=reason_code,
+        retryable=retryable,
+        field_errors=dict(exc.field_errors) if exc.field_errors else None,
+        srm_status_report=srm_response,
+    )

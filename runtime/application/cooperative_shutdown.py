@@ -74,7 +74,7 @@ class CooperativeShutdownCoordinator:
             )
             return
         except Exception:
-            _LOG.exception("kubernetes_sigterm_initiate_failed")
+            _LOG.error("kubernetes_sigterm_initiate_failed", exc_info=False)
         self._ensure_shutdown_thread()
 
     def _ensure_shutdown_thread(self) -> None:
@@ -95,7 +95,7 @@ class CooperativeShutdownCoordinator:
                 suppress_stopping_phase_stdout=True,
             )
         except Exception:
-            _LOG.exception("cooperative_shutdown_worker_stop_failed")
+            _LOG.error("cooperative_shutdown_worker_stop_failed", exc_info=False)
 
 
 def install_sigterm_handler(coordinator: CooperativeShutdownCoordinator) -> bool:
@@ -121,7 +121,7 @@ def install_sigterm_handler(coordinator: CooperativeShutdownCoordinator) -> bool
         try:
             coordinator.request_sigterm_shutdown()
         except Exception:
-            _LOG.exception("kubernetes_sigterm_handler_failed")
+            _LOG.error("kubernetes_sigterm_handler_failed", exc_info=False)
 
     signal.signal(signal.SIGTERM, _on_sigterm)
     return True

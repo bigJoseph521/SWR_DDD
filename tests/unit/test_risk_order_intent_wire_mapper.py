@@ -6,7 +6,7 @@ from unittest.mock import patch
 import pytest
 from alphovex_sdk.enums.order import OrderSide, OrderType, TimeInForce
 from runtime.domain.launch_spec import LaunchSpec
-from runtime.domain.enums import OrderIntentSide, OrderIntentType, WorkerMode
+from runtime.domain.enums import OrderIntentSide, OrderIntentType
 from runtime.domain.errors import (
     ORDER_INTENT_WIRE_MAPPING_MISSING_CORRELATION_ID,
     OrderIntentWireMappingError,
@@ -18,7 +18,9 @@ from runtime.infrastructure.grpc.risk_order_intent_wire_mapper import (
     strategy_order_intent_from_sdk,
 )
 from runtime.domain.model.platform_trace_spec import PlatformTraceSpec
-from runtime.infrastructure.strategy_loader.runtime_stub_support import RuntimeOrderIntent
+from runtime.infrastructure.strategy_loader.runtime_stub_support import (
+    RuntimeOrderIntent,
+)
 
 
 def _launch_spec(**extra: object) -> LaunchSpec:
@@ -80,7 +82,9 @@ def test_build_risk_wire_payload_prefers_launch_spec_correlation_id() -> None:
     assert wire["correlation_id"] == "corr-bundle"
 
 
-def test_build_risk_wire_payload_uses_platform_trace_correlation_when_bundle_absent() -> None:
+def test_build_risk_wire_payload_uses_platform_trace_correlation_when_bundle_absent() -> (
+    None
+):
     spec = LaunchSpec.from_payload(
         {
             "runtime_id": "rt-1",
@@ -112,7 +116,9 @@ def test_build_risk_wire_payload_uses_platform_trace_correlation_when_bundle_abs
     assert wire["correlation_id"] == "corr-trace"
 
 
-def test_build_risk_wire_payload_correlation_id_falls_back_to_runtime_fallback() -> None:
+def test_build_risk_wire_payload_correlation_id_falls_back_to_runtime_fallback() -> (
+    None
+):
     spec = LaunchSpec.from_payload(
         {
             "runtime_id": "rt-1",
@@ -192,7 +198,9 @@ def test_build_risk_wire_payload_missing_correlation_raises_typed_error() -> Non
                 allocate_order_intent_id=lambda: "oi-1",
             ),
         )
-    assert exc_info.value.reason_code == ORDER_INTENT_WIRE_MAPPING_MISSING_CORRELATION_ID
+    assert (
+        exc_info.value.reason_code == ORDER_INTENT_WIRE_MAPPING_MISSING_CORRELATION_ID
+    )
     assert exc_info.value.diagnostics["runtime_id"] == "rt-1"
     assert exc_info.value.diagnostics["strategy_version_id"] == "sv1"
     assert exc_info.value.diagnostics["account_id"] == "acct-1"

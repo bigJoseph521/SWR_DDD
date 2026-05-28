@@ -47,7 +47,7 @@ class _FakeRedis:
         return [(sk, [(mid, {field: body})])]
 
 
-def test_partition_logs_other_symbol_without_dispatching_strategy(
+def test_partition_skips_non_strategy_symbol_log_and_dispatch(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -103,10 +103,8 @@ def test_partition_logs_other_symbol_without_dispatching_strategy(
     )
     out = capsys.readouterr().out
     assert "partition_stream_entry" in out
-    assert (
-        '"matches_strategy_symbol": false' in out
-        or '"matches_strategy_symbol":false' in out
-    )
+    assert '"symbol": "AAPL"' in out or '"symbol":"AAPL"' in out
+    assert "MSFT" not in out
     assert (
         '"matches_strategy_symbol": true' in out
         or '"matches_strategy_symbol":true' in out

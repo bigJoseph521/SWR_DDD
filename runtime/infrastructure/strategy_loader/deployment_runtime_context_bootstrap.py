@@ -11,11 +11,7 @@ from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 from runtime.domain.launch_spec import LaunchSpecValidationError
-from runtime.infrastructure.config.logging import configure_logging
-from runtime.infrastructure.observability.domain_events import (
-    StrategyWorkerDomainEvent,
-    emit_strategy_worker_domain_event,
-)
+from runtime.infrastructure.observability.stdout_event import write_stdout_event
 
 STRATEGY_DEPLOYMENT_SERVICE_BASE_URL_ENV = "STRATEGY_DEPLOYMENT_SERVICE_BASE_URL"
 DEPLOYMENT_ID_ENV = "DEPLOYMENT_ID"
@@ -87,8 +83,8 @@ def worker_bundle_dict_from_runtime_context_response(
 
     artifact_uri = str(rc.get("artifact_uri") or "").strip()
     if artifact_uri:
-        # out["artifact_uri"] = artifact_uri
-        out["artifact_uri"] = "strategy_bundle/sma_crossover.zip"
+        out["artifact_uri"] = artifact_uri
+        # out["artifact_uri"] = "strategy_bundle/sma_crossover.zip"
 
     digest = rc.get("artifact_digest")
     if isinstance(digest, str) and digest.strip():
@@ -166,29 +162,6 @@ def _runtime_identity_from_env() -> dict[str, Any]:
     return out
 
 
-def _print_runtime_context_probe(
-    url: str, request_id: str, status: int, body: bytes
-) -> None:
-    print(
-        f"deployment runtime-context probe: GET {url}\nx-request-id: {request_id}",
-        flush=True,
-    )
-    print(f"deployment runtime-context probe: HTTP {status}", flush=True)
-    if not body:
-        print("deployment runtime-context probe: (empty body)", flush=True)
-        return
-    body_text = body.decode("utf-8", errors="replace").strip()
-    if not body_text:
-        print("deployment runtime-context probe: (empty body)", flush=True)
-        return
-    try:
-        parsed: Any = json.loads(body_text)
-    except json.JSONDecodeError:
-        print(body_text, flush=True)
-        return
-    print(json.dumps(parsed, indent=2, sort_keys=True), flush=True)
-
-
 def fetch_bundle_from_deployment_runtime_context(
     *,
     base_url: str,
@@ -196,7 +169,7 @@ def fetch_bundle_from_deployment_runtime_context(
     timeout_seconds: float = 15.0,
 ) -> dict[str, Any]:
     """
-    GET runtime-context, print the response to stdout, and return a bundle dict for
+    GET runtime-context and return a bundle dict for
     :func:`runtime.infrastructure.config.settings._settings_from_prepared`.
 
     Raises :class:`LaunchSpecValidationError` on missing ``runtime_id`` (env), missing
@@ -214,50 +187,24 @@ def fetch_bundle_from_deployment_runtime_context(
     if correlation:
         headers["x-correlation-id"] = correlation
 
-    base_logger = configure_logging()
-    emit_strategy_worker_domain_event(
-        base_logger,
-        event_name=StrategyWorkerDomainEvent.RUNTIME_CONTEXT_LOADING_STARTED.value,
+    write_stdout_event(
+        level="INFO",
+        event_name="worker.runtime_context.loading",
         message="Loading deployment runtime context from strategy-deployment-service",
-        fields={
-            "deployment_id": deployment_id.strip(),
-            "request_id": request_id,
-            "correlation_id": correlation or None,
-            "runtime_id": os.environ.get("RUNTIME_ID", "").strip() or None,
-            "mode": os.environ.get("MODE", "").strip() or None,
-            "stage": "runtime_context_load",
-            "state": "started",
-        },
     )
 
     try:
         status, body = _http_get(url, headers, timeout_seconds=timeout_seconds)
     except URLError as exc:
-        print(
-            "deployment runtime-context probe: "
-            f"GET {url}\n"
-            f"x-request-id: {request_id}\n"
-            f"deployment runtime-context probe: request failed: {exc!r}",
-            flush=True,
-        )
         raise LaunchSpecValidationError(
             reason="deployment_runtime_context_unreachable",
             field_errors={"deployment_runtime_context": repr(exc)},
         ) from exc
     except OSError as exc:
-        print(
-            "deployment runtime-context probe: "
-            f"GET {url}\n"
-            f"x-request-id: {request_id}\n"
-            f"deployment runtime-context probe: request failed: {exc!r}",
-            flush=True,
-        )
         raise LaunchSpecValidationError(
             reason="deployment_runtime_context_unreachable",
             field_errors={"deployment_runtime_context": repr(exc)},
         ) from exc
-
-    _print_runtime_context_probe(url, request_id, status, body)
 
     if status != 200:
         snippet = body.decode("utf-8", errors="replace")[:2000]
@@ -312,24 +259,9 @@ def fetch_bundle_from_deployment_runtime_context(
         )
 
     bundle = worker_bundle_dict_from_runtime_context_response(parsed, identity=identity)
-    emit_strategy_worker_domain_event(
-        base_logger,
-        event_name=StrategyWorkerDomainEvent.RUNTIME_CONTEXT_LOADED.value,
+    write_stdout_event(
+        level="INFO",
+        event_name="worker.runtime_context.loaded",
         message="Deployment runtime context loaded",
-        fields={
-            "deployment_id": deployment_id.strip(),
-            "request_id": request_id,
-            "correlation_id": correlation or None,
-            "runtime_id": str(identity.get("runtime_id") or "").strip() or None,
-            "strategy_version_id": str(
-                identity.get("strategy_version_id") or ""
-            ).strip()
-            or None,
-            "account_id": str(parsed.get("account_id") or "").strip() or None,
-            "mode": str(parsed.get("mode") or "").strip() or None,
-            "portfolio_id": str(parsed.get("portfolio_id") or "").strip() or None,
-            "stage": "runtime_context_load",
-            "state": "loaded",
-        },
     )
     return bundle

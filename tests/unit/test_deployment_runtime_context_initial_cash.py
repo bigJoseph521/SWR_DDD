@@ -11,7 +11,9 @@ from runtime.infrastructure.sdk.runtime_sdk_bridge import (
     _seed_cash_from_launch_payload,
     build_runtime_sdk_bridge,
 )
-from runtime.infrastructure.strategy_loader.strategy_bundle_loader import raw_dict_to_launch_payload
+from runtime.infrastructure.strategy_loader.strategy_bundle_loader import (
+    raw_dict_to_launch_payload,
+)
 from runtime.domain.enums import WorkerMode
 from runtime.domain.worker_identity import WorkerIdentity
 from runtime.infrastructure.clock.clock import SimulatedClock

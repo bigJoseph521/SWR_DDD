@@ -21,6 +21,7 @@ from runtime.infrastructure.backtest.backtest_stdout_order_intent_submission_ada
     BacktestStdoutOrderIntentSubmissionAdapter,
 )
 
+
 class _FakeRiskOrderIntentClient:
     def __init__(self) -> None:
         self.calls: list[dict[str, object]] = []

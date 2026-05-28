@@ -91,7 +91,9 @@ def test_runtime_production_code_has_no_oms_tokens() -> None:
         rel = path.relative_to(REPO_ROOT).as_posix()
         for line_no, token, snippet in _find_forbidden_tokens(path):
             violations.append(f"{rel}:{line_no}: forbidden '{token}' in: {snippet}")
-    assert not violations, "OMS-related tokens found in runtime:\n" + "\n".join(violations)
+    assert not violations, "OMS-related tokens found in runtime:\n" + "\n".join(
+        violations
+    )
 
 
 def test_runtime_has_no_oms_worker_proto_imports() -> None:

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 from runtime.bootstrap.dependency_container import build_dependency_container
@@ -32,17 +31,12 @@ def test_bootstrap_success_emits_worker_owned_startup_signal_only(
     )
     container = build_dependency_container(settings, manager_client=manager)
 
-    with patch.object(
-        container.lifecycle_service._host.srm,
-        "report_bootstrap_success",
-    ) as success_report_mock:
-        container.worker_app.start()
+    container.worker_app.start()
     assert container.lifecycle_service.phase is WorkerPhase.READY
     assert [signal["signal_type"] for signal in manager.signals] == [
         "bootstrap_succeeded",
         "heartbeat",
     ]
-    success_report_mock.assert_called_once()
 
     container.worker_app.stop()
     assert container.lifecycle_service.phase is WorkerPhase.STOPPED

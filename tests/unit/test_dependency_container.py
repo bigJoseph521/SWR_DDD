@@ -51,7 +51,9 @@ def test_mode_wiring_paper_allows_risk_order_intent() -> None:
     assert deps.risk_order_intent is not None
 
 
-def test_mode_wiring_backtest_uses_simulated_clock_and_risk_order_intent_gateway() -> None:
+def test_mode_wiring_backtest_uses_simulated_clock_without_risk_order_intent_gateway() -> (
+    None
+):
     from runtime.infrastructure.clock.clock import SimulatedClock
 
     settings = _load(
@@ -63,7 +65,7 @@ def test_mode_wiring_backtest_uses_simulated_clock_and_risk_order_intent_gateway
     container = build_dependency_container(settings)
     deps = container.runtime_dependencies_initializer()
 
-    assert deps.risk_order_intent is not None
+    assert deps.risk_order_intent is None
     assert isinstance(deps.clock, SimulatedClock)
 
 

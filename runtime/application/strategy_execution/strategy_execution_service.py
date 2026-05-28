@@ -3,7 +3,9 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 from runtime.application.strategy_execution.strategy_adapter import StrategyAdapter
-from runtime.application.strategy_execution.strategy_error_boundary import StrategyCallResult
+from runtime.application.strategy_execution.strategy_error_boundary import (
+    StrategyCallResult,
+)
 from runtime.domain.model.strategy_calculation_spec import StrategyCalculationSpec
 
 

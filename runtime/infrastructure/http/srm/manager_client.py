@@ -35,7 +35,7 @@ class SrmHttpManagerClient:
 
     def emit_signal(self, envelope: Mapping[str, Any]) -> dict[str, Any]:
         signal_type = str(envelope.get("signal_type") or "")
-        if signal_type == "heartbeat":
+        if signal_type in ("heartbeat", "bootstrap_succeeded", "bootstrap_failed"):
             return self._heartbeat.emit_signal(envelope)
         return self._lifecycle.emit_signal(envelope)
 

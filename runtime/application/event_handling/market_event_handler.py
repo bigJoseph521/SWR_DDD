@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 from datetime import datetime
 from typing import Any, Callable, Mapping
 
@@ -8,7 +7,9 @@ from runtime.application.runtime_state.runtime_state import RuntimeState
 from runtime.application.strategy_execution.strategy_execution_service import (
     StrategyExecutionService,
 )
-from runtime.application.strategy_execution.strategy_error_boundary import StrategyCallResult
+from runtime.application.strategy_execution.strategy_error_boundary import (
+    StrategyCallResult,
+)
 from runtime.domain.enums import WorkerMode
 from runtime.domain.model.normalized_events import (
     MarketBarEvent,
@@ -36,7 +37,9 @@ class MarketEventHandler:
         self._on_execution_failed = on_execution_failed
         self._extract_timestamp = extract_timestamp
 
-    def handle_raw_tick(self, tick: Mapping[str, Any]) -> StrategyCallResult[Any] | None:
+    def handle_raw_tick(
+        self, tick: Mapping[str, Any]
+    ) -> StrategyCallResult[Any] | None:
         if not self._runtime_state.accepts_work():
             return None
         if not self._runtime_state.first_data_received:
@@ -46,7 +49,10 @@ class MarketEventHandler:
             self._runtime_state.record_data_event_timestamp(ts)
         result = self._strategy_execution.on_raw_event(dict(tick))
         if isinstance(result, StrategyCallResult) and result.ok:
-            if self._mode in (WorkerMode.PAPER, WorkerMode.LIVE) and self._on_signal_generated:
+            if (
+                self._mode in (WorkerMode.PAPER, WorkerMode.LIVE)
+                and self._on_signal_generated
+            ):
                 self._on_signal_generated(
                     {
                         "symbol": str(tick.get("symbol") or ""),
@@ -66,12 +72,16 @@ class MarketEventHandler:
         payload.setdefault("type", event.event_type)
         self.handle_raw_tick(payload)
 
-    def handle_market_tick(self, event: MarketTickEvent, raw: Mapping[str, Any]) -> None:
+    def handle_market_tick(
+        self, event: MarketTickEvent, raw: Mapping[str, Any]
+    ) -> None:
         payload = dict(raw)
         payload.setdefault("type", event.event_type)
         self.handle_raw_tick(payload)
 
-    def handle_market_quote(self, event: MarketQuoteEvent, raw: Mapping[str, Any]) -> None:
+    def handle_market_quote(
+        self, event: MarketQuoteEvent, raw: Mapping[str, Any]
+    ) -> None:
         payload = dict(raw)
         payload.setdefault("type", event.event_type)
         self.handle_raw_tick(payload)

@@ -1,0 +1,8 @@
+{
+  "backtest_job_id": "33b90409-e679-41da-9cc8-8d48e7a25c4b",
+  "error_code": "BACKTEST_RUNNER_WORKER_PROTOCOL_ERROR",
+  "failed_phase": "RUNNING_BACKTEST",
+  "final_state": "FAILED",
+  "message": "BACKTEST_RUNNER_WORKER_PROTOCOL_ERROR: strategy-worker-runtime message missing `type` field on line 1",
+  "runtime_id": "2f2b8d69-da23-4ff5-9abb-7005e19b3357"
+}

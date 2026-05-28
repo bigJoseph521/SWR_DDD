@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-import risk_worker_pb2 as risk__worker__pb2
+from . import risk_worker_pb2 as risk__worker__pb2
 
 GRPC_GENERATED_VERSION = '1.78.0'
 GRPC_VERSION = grpc.__version__

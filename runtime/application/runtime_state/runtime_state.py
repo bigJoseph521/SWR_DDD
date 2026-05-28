@@ -9,7 +9,9 @@ from runtime.domain.enums import WorkerPhase
 class RuntimeState:
     """Worker phase and last-ingested data event timestamp."""
 
-    def __init__(self, *, initial_phase: WorkerPhase = WorkerPhase.INITIALIZING) -> None:
+    def __init__(
+        self, *, initial_phase: WorkerPhase = WorkerPhase.INITIALIZING
+    ) -> None:
         self._lock = threading.Lock()
         self._phase = initial_phase
         self._last_data_event_timestamp: datetime | None = None

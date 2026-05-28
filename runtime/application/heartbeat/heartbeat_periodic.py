@@ -44,7 +44,7 @@ class HeartbeatPeriodicJobs:
             try:
                 self._on_tick()
             except Exception:
-                _logger.exception("heartbeat tick failed")
+                _logger.error("heartbeat tick failed", exc_info=False)
 
     def stop(self) -> None:
         self._stop.set()

@@ -13,7 +13,23 @@ RUNTIME_ROOT = REPO_ROOT / "runtime"
 RUNTIME_LAYERS = ("domain", "application", "interface", "infrastructure", "bootstrap")
 
 # file path (posix) -> imported module -> reason
-ALLOWED_IMPORT_VIOLATIONS: dict[str, dict[str, str]] = {}
+ALLOWED_IMPORT_VIOLATIONS: dict[str, dict[str, str]] = {
+    "runtime/application/lifecycle/lifecycle_service.py": {
+        "runtime.infrastructure.observability.stdout_event": (
+            "Transitional structured stdout for local CLI; replace with application port."
+        ),
+    },
+    "runtime/application/worker_app.py": {
+        "runtime.infrastructure.observability.stdout_event": (
+            "Transitional structured stdout for local CLI; replace with application port."
+        ),
+    },
+    "runtime/application/order_intents/submit_order_intent.py": {
+        "runtime.infrastructure.observability.stdout_event": (
+            "Transitional structured stdout for local CLI; replace with application port."
+        ),
+    },
+}
 
 
 @dataclass(frozen=True)
@@ -67,12 +83,16 @@ _LAYER_RULES: dict[str, tuple[str, tuple[str, ...], str]] = {
 def _is_allowed(file_path: str, imported_module: str) -> bool:
     allowed_for_file = ALLOWED_IMPORT_VIOLATIONS.get(file_path, {})
     for allowed_module, _reason in allowed_for_file.items():
-        if imported_module == allowed_module or imported_module.startswith(allowed_module + "."):
+        if imported_module == allowed_module or imported_module.startswith(
+            allowed_module + "."
+        ):
             return True
     return False
 
 
-def _matches_forbidden(imported_module: str, forbidden_prefixes: Iterable[str]) -> str | None:
+def _matches_forbidden(
+    imported_module: str, forbidden_prefixes: Iterable[str]
+) -> str | None:
     for prefix in forbidden_prefixes:
         if imported_module == prefix or imported_module.startswith(prefix + "."):
             return prefix
@@ -155,10 +175,14 @@ def collect_runtime_imports(
 
 def _format_violations(records: list[ImportRecord]) -> str:
     lines = ["DDD import boundary violations:", ""]
-    for record in sorted(records, key=lambda r: (r.file_path, r.line_no, r.imported_module)):
+    for record in sorted(
+        records, key=lambda r: (r.file_path, r.line_no, r.imported_module)
+    ):
         lines.append(f"  {record.file_path}:{record.line_no}")
         lines.append(f"    import: {record.imported_module}")
-        lines.append(f"    rule: {record.rule_id} (forbidden: {record.forbidden_prefix})")
+        lines.append(
+            f"    rule: {record.rule_id} (forbidden: {record.forbidden_prefix})"
+        )
         lines.append(f"    hint: {record.suggestion}")
         lines.append("")
     lines.append(
@@ -169,7 +193,9 @@ def _format_violations(records: list[ImportRecord]) -> str:
 
 
 def _violations_for_layer(layer: str) -> list[ImportRecord]:
-    return [record for record in collect_runtime_imports() if record.source_layer == layer]
+    return [
+        record for record in collect_runtime_imports() if record.source_layer == layer
+    ]
 
 
 def test_domain_has_no_outer_layer_imports() -> None:
@@ -205,7 +231,9 @@ def test_bootstrap_is_allowed_to_wire_layers() -> None:
             continue
         for imported_module, _line_no in _extract_runtime_imports(path):
             for prefix in imports_by_prefix:
-                if imported_module == prefix or imported_module.startswith(prefix + "."):
+                if imported_module == prefix or imported_module.startswith(
+                    prefix + "."
+                ):
                     imports_by_prefix[prefix].add(imported_module)
 
     missing = [prefix for prefix, modules in imports_by_prefix.items() if not modules]
@@ -229,4 +257,6 @@ def test_allowlist_entries_reference_real_violations() -> None:
         for imported_module in modules:
             if (file_path, imported_module) not in current:
                 stale.append(f"{file_path} -> {imported_module}")
-    assert not stale, "Stale allowlist entries (no longer violating):\n  " + "\n  ".join(stale)
+    assert not stale, (
+        "Stale allowlist entries (no longer violating):\n  " + "\n  ".join(stale)
+    )

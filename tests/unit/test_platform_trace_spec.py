@@ -56,5 +56,7 @@ def test_domain_platform_trace_spec_does_not_import_outer_layers() -> None:
                 continue
             for prefix in forbidden:
                 if prefix in stripped:
-                    violations.append(f"{path.relative_to(domain_root.parent)}:{line_no}: {stripped}")
+                    violations.append(
+                        f"{path.relative_to(domain_root.parent)}:{line_no}: {stripped}"
+                    )
     assert violations == []

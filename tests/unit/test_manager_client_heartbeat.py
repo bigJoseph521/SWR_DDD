@@ -3,7 +3,10 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from unittest import mock
 
-from runtime.infrastructure.http.srm.manager_client import SrmHttpManagerClient, build_manager_client
+from runtime.infrastructure.http.srm.manager_client import (
+    SrmHttpManagerClient,
+    build_manager_client,
+)
 
 
 def _heartbeat_envelope() -> dict[str, object]:
@@ -39,13 +42,13 @@ def test_http_manager_client_routes_heartbeat_to_heartbeat_client() -> None:
     lifecycle_client.emit_signal.assert_not_called()
 
 
-def test_http_manager_client_routes_lifecycle_to_lifecycle_client() -> None:
+def test_http_manager_client_routes_bootstrap_signals_to_heartbeat_client() -> None:
     heartbeat_client = mock.Mock()
-    lifecycle_client = mock.Mock()
-    lifecycle_client.emit_signal.return_value = {
+    heartbeat_client.emit_signal.return_value = {
         "accepted": True,
         "signal_type": "bootstrap_succeeded",
     }
+    lifecycle_client = mock.Mock()
     client = SrmHttpManagerClient(
         heartbeat_client=heartbeat_client,
         lifecycle_client=lifecycle_client,
@@ -58,5 +61,5 @@ def test_http_manager_client_routes_lifecycle_to_lifecycle_client() -> None:
     }
     result = client.emit_signal(envelope)
     assert result["accepted"] is True
-    lifecycle_client.emit_signal.assert_called_once_with(envelope)
-    heartbeat_client.emit_signal.assert_not_called()
+    heartbeat_client.emit_signal.assert_called_once_with(envelope)
+    lifecycle_client.emit_signal.assert_not_called()

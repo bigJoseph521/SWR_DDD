@@ -64,7 +64,7 @@ class RiskGatewaySubmissionAdapter:
             _LOG.error(
                 "risk_order_intent_client_misconfigured",
                 extra={"instrument_id": intent.instrument_id},
-                exc_info=True,
+                exc_info=False,
             )
             raise misconfigured_client_error(wire=wire) from exc
 

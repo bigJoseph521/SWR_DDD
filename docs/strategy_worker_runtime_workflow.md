@@ -8,6 +8,16 @@ Related: [strategy_worker_runtime_ddd_refactor.md](./strategy_worker_runtime_ddd
 
 ![Strategy Worker Runtime workflow](./strategy_worker_runtime_workflow.png)
 
+The diagram above shows **three operational shapes** in one runtime package:
+
+| Path | Entry | Market data ingress | Order egress | SRM |
+|------|--------|---------------------|--------------|-----|
+| **BACKTEST subprocess** | `main.py` + `--artifact-path` / `--entrypoint` → `BacktestRunnerStdioHost` | **backtest-runner** stdin JSONL (`PORTFOLIO_SNAPSHOT`, `MARKET_DATA_EVENT`, …) | stdout `ORDER_INTENTS` / `NO_OP` (protocol fd) | **No** — runner owns heartbeats |
+| **PAPER / LIVE** | `run_runtime_from_cli()` full bootstrap | Redis Streams (`md:stream:*`) | Risk Service gRPC | HTTP lifecycle + status |
+| **Platform BACKTEST** (optional) | Same as PAPER/LIVE with `SWR_MODE=BACKTEST` | `BacktestStdinMarketDataFeed` (`MARKET_DATA` pull) | stdout `ORDER_INTENT` push | Per lifecycle config |
+
+Sections below describe **current code** in more detail; where they differ from the subprocess row, treat the diagram as the **target** backtest-runner integration.
+
 ---
 
 ## 1. Overview

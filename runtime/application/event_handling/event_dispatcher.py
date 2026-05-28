@@ -7,11 +7,22 @@ from runtime.application.event_handling.runtime_event_handler import RuntimeEven
 from runtime.application.strategy_execution.strategy_execution_service import (
     StrategyExecutionService,
 )
-from runtime.application.strategy_execution.event_mapper import EventMapper, EventMappingError
-from runtime.application.strategy_execution.event_mapper import MarketBarEvent as WireMarketBarEvent
-from runtime.application.strategy_execution.event_mapper import MarketQuoteEvent as WireMarketQuoteEvent
-from runtime.application.strategy_execution.event_mapper import MarketTickEvent as WireMarketTickEvent
-from runtime.application.strategy_execution.event_mapper import TimerEvent as WireTimerEvent
+from runtime.application.strategy_execution.event_mapper import (
+    EventMapper,
+    EventMappingError,
+)
+from runtime.application.strategy_execution.event_mapper import (
+    MarketBarEvent as WireMarketBarEvent,
+)
+from runtime.application.strategy_execution.event_mapper import (
+    MarketQuoteEvent as WireMarketQuoteEvent,
+)
+from runtime.application.strategy_execution.event_mapper import (
+    MarketTickEvent as WireMarketTickEvent,
+)
+from runtime.application.strategy_execution.event_mapper import (
+    TimerEvent as WireTimerEvent,
+)
 from runtime.domain.model import normalized_events as domain_events
 
 _LOG = logging.getLogger(__name__)
@@ -95,7 +106,7 @@ class EventDispatcher:
         try:
             mapped = self._mapper.map_event(raw_event)
         except EventMappingError:
-            _LOG.debug("event_dispatch_raw_mapping_failed", exc_info=True)
+            _LOG.debug("event_dispatch_raw_mapping_failed", exc_info=False)
             return
         domain_event = wire_event_to_domain(mapped, raw_event)
         if domain_event is not None:

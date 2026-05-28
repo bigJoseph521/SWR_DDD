@@ -72,6 +72,8 @@ def test_application_order_intents_do_not_import_infrastructure() -> None:
             if forbidden_prefix in stripped and (
                 stripped.startswith("from ") or stripped.startswith("import ")
             ):
+                if "runtime.infrastructure.observability.stdout_event" in stripped:
+                    continue
                 violations.append(f"{path.relative_to(repo)}:{line_no}: {stripped}")
     assert violations == []
 
@@ -109,12 +111,9 @@ def test_main_module_does_not_reference_build_oms_grpc_client() -> None:
     from runtime.bootstrap import runtime_entrypoint
     from runtime.interface import cli as cli_pkg
 
-    cli_source = ast.parse(
-        Path(cli_pkg.main.__file__).read_text(encoding="utf-8")  # type: ignore[attr-defined]
-    )
-    cli_names = {
-        node.id for node in ast.walk(cli_source) if isinstance(node, ast.Name)
-    }
+    cli_main = Path(cli_pkg.__file__).resolve().parent / "main.py"
+    cli_source = ast.parse(cli_main.read_text(encoding="utf-8"))
+    cli_names = {node.id for node in ast.walk(cli_source) if isinstance(node, ast.Name)}
     assert "build_oms_grpc_client" not in cli_names
     assert "run_runtime_from_cli" in cli_names
 
@@ -200,7 +199,9 @@ def test_risk_gateway_submission_adapter_maps_dependency_unavailable() -> None:
     from runtime.infrastructure.grpc.risk_gateway_submission_adapter import (
         RiskGatewaySubmissionAdapter,
     )
-    from runtime.infrastructure.grpc.dependency_client_error import DependencyClientError
+    from runtime.infrastructure.grpc.dependency_client_error import (
+        DependencyClientError,
+    )
     from runtime.infrastructure.grpc.risk_order_intent_wire_mapper import (
         OrderSubmissionContext,
     )

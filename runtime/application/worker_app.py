@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-import json
 import time
-from datetime import datetime, timezone
-from typing import Any
 
 from runtime.application.lifecycle.lifecycle_service import LifecycleService
 from runtime.domain.enums import WorkerPhase
@@ -37,29 +34,20 @@ class WorkerApp:
             self._lifecycle.run()
         except Exception:
             startup_failed = True
-        now_text = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         waiting_reason = "AWAIT_MANAGER_CONTROL"
         if startup_failed:
             waiting_reason = "BOOTSTRAP_FAILED_AWAIT_MANAGER_CONTROL"
         runtime_meta = self._lifecycle.runtime_metadata
-        launch_attempt_raw: Any = runtime_meta.get("launch_attempt")
-        status_message = {
-            "event_id": "worker_waiting_for_data",
-            "event_name": "worker.state.waiting_for_manager",
-            "event_version": 1,
-            "producer": "strategy-worker-runtime",
-            "occurred_at": now_text,
-            "correlation_id": "",
-            "tenant_id": str(runtime_meta.get("tenant_id") or ""),
-            "account_id": str(runtime_meta.get("account_id") or ""),
-            "runtime_id": str(runtime_meta.get("runtime_id") or ""),
-            "worker_identity": str(runtime_meta.get("worker_identity") or ""),
-            "launch_attempt": int(launch_attempt_raw or 0),
-            "strategy_version_id": str(runtime_meta.get("strategy_version_id") or ""),
-            "payload": {"reason_code": waiting_reason},
-        }
-        print("----------------------------Internal State------------")
-        print(json.dumps(status_message, separators=(",", ":"), ensure_ascii=True))
+        from runtime.infrastructure.observability.stdout_event import write_stdout_event
+
+        write_stdout_event(
+            level="INFO",
+            event_name="worker.state.waiting",
+            message="Waiting for market data",
+            runtime_id=str(runtime_meta.get("runtime_id") or "") or None,
+            reason_code=waiting_reason,
+            local_phase=str(runtime_meta.get("local_phase") or "") or None,
+        )
         try:
             if not startup_failed:
                 while (
@@ -73,7 +61,11 @@ class WorkerApp:
                             termination_message=None,
                         )
                         return
-                    print("Waiting for data", flush=True)
+                    write_stdout_event(
+                        level="INFO",
+                        event_name="worker.market_data.waiting",
+                        message="Waiting for data",
+                    )
                     time.sleep(60.0)
             while self._lifecycle.phase in (
                 WorkerPhase.READY,

@@ -7,8 +7,6 @@ from datetime import datetime, timezone
 from unittest.mock import patch
 
 from decimal import Decimal
-from datetime import datetime, timezone
-from unittest.mock import patch
 
 from runtime.domain.enums import OrderIntentSide, OrderIntentType, WorkerMode
 from runtime.infrastructure.backtest.backtest_stdout_order_intent_submission_adapter import (
@@ -16,10 +14,9 @@ from runtime.infrastructure.backtest.backtest_stdout_order_intent_submission_ada
 )
 from runtime.domain.launch_spec import LaunchSpec
 from runtime.domain.model.strategy_order_intent import StrategyOrderIntent
-from runtime.infrastructure.backtest.backtest_stdout_order_intent_submission_adapter import (
-    BacktestStdoutOrderIntentSubmissionAdapter,
+from runtime.infrastructure.grpc.risk_order_intent_wire_mapper import (
+    OrderSubmissionContext,
 )
-from runtime.infrastructure.grpc.risk_order_intent_wire_mapper import OrderSubmissionContext
 from runtime.interface.stdio.stdout_protocol import StdoutMessageType
 
 
@@ -80,14 +77,14 @@ def test_backtest_stdout_adapter_emits_order_intent_jsonl() -> None:
 
 
 def test_backtest_stdout_writer_envelope_shape() -> None:
-  """Integration: adapter → writer produces ORDER_INTENT JSONL envelope."""
-  import io
+    """Integration: adapter → writer produces ORDER_INTENT JSONL envelope."""
+    import io
 
-  from runtime.interface.stdio.backtest_stdout_order_intent_writer import (
-      emit_backtest_order_intent_jsonl,
-  )
+    from runtime.interface.stdio.backtest_stdout_order_intent_writer import (
+        emit_backtest_order_intent_jsonl,
+    )
 
-  buf = io.StringIO()
-  emit_backtest_order_intent_jsonl({"instrument_id": "AAPL"}, output=buf)
-  line = json.loads(buf.getvalue().strip())
-  assert line["type"] == StdoutMessageType.ORDER_INTENT.value
+    buf = io.StringIO()
+    emit_backtest_order_intent_jsonl({"instrument_id": "AAPL"}, output=buf)
+    line = json.loads(buf.getvalue().strip())
+    assert line["type"] == StdoutMessageType.ORDER_INTENT.value

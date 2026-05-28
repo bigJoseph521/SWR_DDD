@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -18,7 +17,9 @@ from runtime.application.strategy_execution.strategy_execution_service import (
 from runtime.application.strategy_execution.event_mapper import EventMapper
 from runtime.domain.launch_spec import LaunchSpec
 from runtime.application.strategy_execution.strategy_adapter import StrategyAdapter
-from runtime.application.strategy_execution.strategy_error_boundary import StrategyErrorBoundary
+from runtime.application.strategy_execution.strategy_error_boundary import (
+    StrategyErrorBoundary,
+)
 from runtime.infrastructure.config.settings import Settings
 from runtime.domain.enums import WorkerMode, WorkerPhase
 from runtime.domain.model.normalized_events import MarketBarEvent
@@ -209,12 +210,20 @@ def test_dispatch_raw_routes_through_public_runtime_handler_api() -> None:
         def handle_portfolio_update(self, event: object) -> None:
             raise AssertionError("portfolio path not expected")
 
-        def handle(self, event: object, *, raw: dict[str, object] | None = None) -> None:
+        def handle(
+            self, event: object, *, raw: dict[str, object] | None = None
+        ) -> None:
             raise AssertionError("normalized handle path not expected for raw tick")
 
     handler = _PublicRuntimeHandler()
     dispatcher = EventDispatcher(runtime_handler=handler)  # type: ignore[arg-type]
-    tick = {"type": "market.tick", "symbol": "AAPL", "price": 1.0, "size": 1.0, "ts_ms": 1}
+    tick = {
+        "type": "market.tick",
+        "symbol": "AAPL",
+        "price": 1.0,
+        "size": 1.0,
+        "ts_ms": 1,
+    }
 
     dispatcher.dispatch_raw(tick)
 
@@ -239,8 +248,12 @@ def test_dispatch_portfolio_routes_through_public_runtime_handler_api() -> None:
         def handle_portfolio_update(self, event: PortfolioUpdatedEvent) -> None:
             self.portfolio_events.append(event)
 
-        def handle(self, event: object, *, raw: dict[str, object] | None = None) -> None:
-            raise AssertionError("normalized handle path not expected for portfolio update")
+        def handle(
+            self, event: object, *, raw: dict[str, object] | None = None
+        ) -> None:
+            raise AssertionError(
+                "normalized handle path not expected for portfolio update"
+            )
 
     handler = _PublicRuntimeHandler()
     dispatcher = EventDispatcher(runtime_handler=handler)  # type: ignore[arg-type]
@@ -272,7 +285,9 @@ def test_dispatch_raw_logs_event_mapping_error(
         def handle_portfolio_update(self, event: object) -> None:
             pass
 
-        def handle(self, event: object, *, raw: dict[str, object] | None = None) -> None:
+        def handle(
+            self, event: object, *, raw: dict[str, object] | None = None
+        ) -> None:
             pass
 
     dispatcher = EventDispatcher(
@@ -284,6 +299,6 @@ def test_dispatch_raw_logs_event_mapping_error(
         dispatcher.dispatch_raw({"unexpected": "payload"})
 
     assert any(
-        "event_dispatch_raw_mapping_failed" in record.message for record in caplog.records
+        "event_dispatch_raw_mapping_failed" in record.message
+        for record in caplog.records
     )
-

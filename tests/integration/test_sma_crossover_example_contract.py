@@ -4,7 +4,9 @@ import importlib.util
 from pathlib import Path
 
 import pytest
-from runtime.infrastructure.strategy_loader.entrypoint_loader import EntrypointLoadResult
+from runtime.infrastructure.strategy_loader.entrypoint_loader import (
+    EntrypointLoadResult,
+)
 from runtime.bootstrap.sdk_contract_validator import (
     SdkContractValidator,
 )

@@ -17,7 +17,9 @@ from runtime.application.strategy_execution.event_mapper import (
     MarketQuoteEvent,
     MarketTickEvent,
 )
-from runtime.application.strategy_execution.event_mapper import TimerEvent as WireTimerEvent
+from runtime.application.strategy_execution.event_mapper import (
+    TimerEvent as WireTimerEvent,
+)
 from runtime.domain.launch_spec import LaunchSpec
 from runtime.infrastructure.strategy_loader.runtime_stub_support import (
     BarHistory,

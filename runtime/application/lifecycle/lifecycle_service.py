@@ -1,14 +1,11 @@
 from __future__ import annotations
 
 import inspect
-import json
 import logging
 import threading
-import uuid
 from datetime import datetime, timezone
 from typing import Any, Callable, Mapping, Protocol, Sequence
 
-from runtime.application.lifecycle.bootstrap_stages import BOOTSTRAP_STAGE_ORDER
 from runtime.application.lifecycle.lifecycle_ddd_wiring import LifecycleDddWiring
 from runtime.application.lifecycle.noop_host_ports import noop_lifecycle_host_ports
 from runtime.application.lifecycle.stop_errors import (
@@ -29,16 +26,12 @@ from runtime.application.ports.worker_domain_events import StrategyWorkerDomainE
 from runtime.application.runtime_dependencies import RuntimeDependencies
 from runtime.application.runtime_state.runtime_state import RuntimeState
 from runtime.application.strategy_execution.strategy_adapter import StrategyAdapter
-from runtime.application.strategy_execution.strategy_error_boundary import StrategyCallResult
 from runtime.domain.enums import WorkerMode, WorkerPhase
 from runtime.domain.errors import (
-    RuntimeStartValidationFailedError,
     normalize_runtime_reason_code,
 )
 from runtime.domain.model.platform_trace_spec import PlatformTraceSpec
 from runtime.domain.worker_identity import WorkerIdentity
-
-
 
 
 class WorkAcceptor(Protocol):
@@ -191,7 +184,10 @@ class LifecycleService:
 
     @property
     def backtest_replay_complete(self) -> bool:
-        return self._runtime_state.backtest_replay_complete or self._backtest_replay_complete
+        return (
+            self._runtime_state.backtest_replay_complete
+            or self._backtest_replay_complete
+        )
 
     def should_stop_for_completed_backtest_job(self) -> bool:
         """
@@ -233,38 +229,9 @@ class LifecycleService:
         message: str,
         fields: Mapping[str, Any],
     ) -> None:
-        """Structured logs for the Redis market-data stream thread (stdout fallback without logger)."""
-        lg = self._runtime_logger
-        lvl = getattr(logging, level.upper(), logging.INFO)
-        merged = dict(fields)
-        if lg is not None:
-            try:
-                lg.emit(
-                    event_name=event_name,
-                    message=message,
-                    level=lvl,
-                    event_extras=merged,
-                )
-            except Exception:
-                print(
-                    json.dumps(
-                        {"event_name": event_name, "message": message, **merged},
-                        default=str,
-                        sort_keys=True,
-                    ),
-                    flush=True,
-                )
-        else:
-            if lvl == logging.DEBUG:
-                return
-            print(
-                json.dumps(
-                    {"event_name": event_name, "message": message, **merged},
-                    default=str,
-                    sort_keys=True,
-                ),
-                flush=True,
-            )
+        """No-op: market-data Redis ingress step logs are not emitted to stdout."""
+        del level, event_name, message, fields
+        return
 
     def emit_periodic_heartbeat(self) -> None:
         """Emit operational heartbeat to strategy-runtime-manager (REST when configured)."""
@@ -322,9 +289,7 @@ class LifecycleService:
             local_state=self._phase.value,
             observed_at=when,
             source=str(
-                source
-                if source is not None
-                else self._host.srm_status_source_heartbeat
+                source if source is not None else self._host.srm_status_source_heartbeat
             ),
             reason_code=reason_code,
             message=message,
@@ -352,7 +317,6 @@ class LifecycleService:
             timeout_seconds=timeout_seconds,
         )
 
-
     def initiate_stop_from_request(self, reason: str) -> dict[str, object]:
         """
         Handle ``POST /internal/v1/stop``: report STOPPING to SRM and return that status body.
@@ -377,13 +341,13 @@ class LifecycleService:
             if self._stop_request_accepted or self._shutdown_in_progress:
                 raise StopAlreadyInProgress("Stop is already in progress.")
             result = self._host.srm.initiate_stop_status_update(
-                    runtime_id=self._launch_spec.runtime_id,
-                    mode=self._launch_spec.mode.value,
-                    owner_resource_id=deployment_id,
-                    srm_base_url=srm_base_url,
-                    reason=reason,
-                    timeout_seconds=timeout_seconds,
-                )
+                runtime_id=self._launch_spec.runtime_id,
+                mode=self._launch_spec.mode.value,
+                owner_resource_id=deployment_id,
+                srm_base_url=srm_base_url,
+                reason=reason,
+                timeout_seconds=timeout_seconds,
+            )
             body = result.get("body", result)
             canonical = str(result.get("canonical", ""))
             resolved_message = str(result.get("resolved_message", ""))
@@ -543,7 +507,6 @@ class LifecycleService:
                         "entrypoint": bootstrap_success.entrypoint.entrypoint_spec
                     },
                 )
-            self._report_bootstrap_success_to_srm()
 
             self._set_phase(WorkerPhase.READY)
             self._emit_domain_event(
@@ -747,14 +710,19 @@ class LifecycleService:
         message: str,
         fields: Mapping[str, Any],
     ) -> None:
-        payload = {
-            "level": level,
-            "event": event_name,
-            "message": message,
-            **fields,
-        }
-        print(
-            f"[portfolio-update-redis] {json.dumps(payload, default=str)}", flush=True
+        from runtime.infrastructure.observability.stdout_event import write_stdout_event
+
+        normalized = str(event_name or "").strip()
+        if normalized.startswith("portfolio_update_adapter."):
+            normalized = (
+                "worker.portfolio_update."
+                + normalized[len("portfolio_update_adapter.") :]
+            )
+        write_stdout_event(
+            level=level,
+            event_name=normalized,
+            message=message,
+            **dict(fields),
         )
 
     def _dispatch_portfolio_updated_event(
@@ -835,13 +803,9 @@ class LifecycleService:
                     getattr(wrs, "strategy_runtime_manager_base_url", "") or ""
                 ).strip()
                 if srm_base_url:
-                    deployment_id = str(
-                        getattr(wrs, "deployment_id", "") or ""
-                    ).strip()
+                    deployment_id = str(getattr(wrs, "deployment_id", "") or "").strip()
                     timeout_seconds = float(
-                        getattr(
-                            wrs, "runtime_manager_heartbeat_timeout_seconds", 30.0
-                        )
+                        getattr(wrs, "runtime_manager_heartbeat_timeout_seconds", 30.0)
                         or 30.0
                     )
                     try:
@@ -912,7 +876,6 @@ class LifecycleService:
     ) -> tuple[list[str], list[str], list[str]]:
         return self._host.classify_bootstrap_stages(error, self._startup_steps)
 
-
     def _record_order_intent_for_journal(
         self,
         source: str,
@@ -943,7 +906,6 @@ class LifecycleService:
     def _platform_trace(self) -> PlatformTraceSpec | None:
         return self._host.sdk_bridge.platform_trace(self._worker_runtime_settings)
 
-
     def _order_intent_env_correlation(self) -> str:
         wrs = self._worker_runtime_settings
         if wrs is None:
@@ -960,7 +922,6 @@ class LifecycleService:
                 except Exception:
                     pass
         return self._host.simulated_clock.build_seeded(wall)
-
 
     def _make_backtest_sdk_bridge(
         self,
@@ -986,7 +947,6 @@ class LifecycleService:
             ),
             platform_trace=self._platform_trace(),
         )
-
 
     def _emit_backtest_order_submitter_bridge_logs(
         self, submitter: Callable[[Any], dict[str, Any]] | None
@@ -1055,7 +1015,9 @@ class LifecycleService:
             if (
                 self._launch_spec.mode is WorkerMode.BACKTEST
                 and self._runtime_dependencies is not None
-                and self._host.simulated_clock.is_simulated(self._runtime_dependencies.clock)
+                and self._host.simulated_clock.is_simulated(
+                    self._runtime_dependencies.clock
+                )
             ):
                 bridge, submitter = self._make_backtest_sdk_bridge(
                     strategy_instance=strategy_instance,
@@ -1147,54 +1109,27 @@ class LifecycleService:
         reason_code: str | None = None,
         emit_stdout: bool = True,
     ) -> None:
-        event_name = "worker_state_changed"
+        from runtime.infrastructure.observability.stdout_event import write_stdout_event
+
+        event_name = "worker.state.changed"
+        message = f"Worker phase {state.value}"
         if state is WorkerPhase.FAILED:
-            event_name = "worker_launch_failed"
+            event_name = "worker.launch.failed"
+            message = "Worker launch failed"
         elif state in (WorkerPhase.STOPPED, WorkerPhase.COMPLETED):
-            event_name = "worker_shutdown_completed"
+            event_name = "worker.shutdown.completed"
+            message = "Worker shutdown completed"
 
-        trace = self._platform_trace()
-        correlation_id = ""
-        if trace is not None:
-            correlation_id = (
-                trace.effective_correlation_id(
-                    env_fallback=self._order_intent_env_correlation()
-                )
-                or ""
-            )
-
-        message: dict[str, object] = {
-            "event_id": (
-                f"{self._launch_spec.runtime_id}:"
-                f"{self._launch_spec.launch_attempt}:"
-                f"{event_name}:internal_state"
-            ),
-            "event_name": event_name,
-            "event_version": 1,
-            "producer": "strategy-worker-runtime",
-            "occurred_at": _utc_now().isoformat().replace("+00:00", "Z"),
-            "correlation_id": correlation_id,
-            "tenant_id": self._launch_spec.tenant_id,
-            "account_id": self._launch_spec.account_id or "",
-            "runtime_id": self._launch_spec.runtime_id,
-            "worker_identity": self._worker_identity_value(),
-            "launch_attempt": self._launch_spec.launch_attempt,
-            "strategy_version_id": self._launch_spec.strategy_version_id,
-            "payload": {
-                "level": level,
-                "local_phase": state.value,
-                "mode": self._launch_spec.mode.value,
-            },
-        }
-        if reason_code is not None:
-            payload = message.get("payload")
-            if isinstance(payload, dict):
-                payload["reason_code"] = reason_code
-        if trace is not None and trace.request_id:
-            message["request_id"] = trace.request_id
         if emit_stdout:
-            print("----------------------------Internal State------------")
-            print(json.dumps(message, separators=(",", ":"), ensure_ascii=True))
+            write_stdout_event(
+                level=level,
+                event_name=event_name,
+                message=message,
+                runtime_id=self._launch_spec.runtime_id,
+                local_phase=state.value,
+                mode=self._launch_spec.mode.value,
+                reason_code=reason_code,
+            )
 
     def _set_phase(
         self,

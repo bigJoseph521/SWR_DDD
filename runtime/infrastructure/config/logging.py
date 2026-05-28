@@ -5,6 +5,8 @@ import logging
 import sys
 from typing import Mapping
 
+import colorlog
+
 from runtime.domain.platform_trace_factory import build_platform_trace_spec_from_launch
 from runtime.infrastructure.config.settings import Settings
 from runtime.domain.worker_identity import WorkerIdentity
@@ -23,13 +25,33 @@ class StructuredEventFormatter(logging.Formatter):
         )
 
 
+class StructuredColorFormatter(colorlog.ColoredFormatter):
+    """JSON structured lines with colorlog level coloring."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "%(log_color)s%(message)s%(reset)s",
+            log_colors={
+                "DEBUG": "cyan",
+                "INFO": "green",
+                "WARNING": "yellow",
+                "ERROR": "red",
+                "CRITICAL": "red,bg_white",
+            },
+        )
+
+    def format(self, record: logging.LogRecord) -> str:
+        record.message = StructuredEventFormatter().format(record)
+        return super().format(record)
+
+
 def configure_logging() -> logging.Logger:
-    logger = logging.getLogger("strategy_worker_runtime")
+    logger = colorlog.getLogger("strategy_worker_runtime")
     logger.setLevel(logging.INFO)
     logger.propagate = False
     if not logger.handlers:
-        handler = logging.StreamHandler(sys.stdout)
-        handler.setFormatter(StructuredEventFormatter())
+        handler = colorlog.StreamHandler(sys.stdout)
+        handler.setFormatter(StructuredColorFormatter())
         logger.addHandler(handler)
     return logger
 

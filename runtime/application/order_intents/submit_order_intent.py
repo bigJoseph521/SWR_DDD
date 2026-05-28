@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 from typing import Any, Callable, Mapping
 
 from runtime.application.order_intents.order_intent_result import OrderIntentResult
@@ -13,15 +12,7 @@ from runtime.domain.errors import (
     OrderIntentWireMappingError,
 )
 from runtime.domain.model.strategy_order_intent import StrategyOrderIntent
-
-_LOG = logging.getLogger(__name__)
-
-
-def _intent_log_context(intent: StrategyOrderIntent) -> dict[str, Any]:
-    ctx: dict[str, Any] = {"instrument_id": intent.instrument_id}
-    if intent.client_order_id:
-        ctx["client_order_id"] = intent.client_order_id
-    return ctx
+from runtime.infrastructure.observability.stdout_event import write_stdout_event
 
 
 def _risk_rejection_result(response: Mapping[str, Any]) -> OrderIntentResult | None:
@@ -53,14 +44,15 @@ class SubmitOrderIntent:
         *,
         on_journal: Callable[[dict[str, object]], None] | None = None,
     ) -> OrderIntentResult:
-        log_ctx = _intent_log_context(intent)
         try:
             response = dict(self._submission_port.submit_order_intent(intent))
         except OrderIntentWireMappingError as exc:
-            _LOG.error(
-                "order_intent_wire_mapping_failed",
-                extra={**log_ctx, **exc.diagnostics, "reason_code": exc.reason_code},
-                exc_info=True,
+            write_stdout_event(
+                level="ERROR",
+                event_name="worker.order_intent.wire_mapping_failed",
+                message="Order intent wire mapping failed",
+                reason_code=exc.reason_code,
+                symbol=intent.instrument_id,
             )
             return OrderIntentResult(
                 ok=False,
@@ -68,16 +60,13 @@ class SubmitOrderIntent:
                 reason_code=exc.reason_code,
             )
         except OrderIntentSubmissionError as exc:
-            _LOG.error(
-                "order_intent_submission_failed",
-                extra={
-                    **log_ctx,
-                    **exc.diagnostics,
-                    "error_code": exc.error_code,
-                    "reason_code": exc.reason_code,
-                    "retryable": exc.retryable,
-                },
-                exc_info=True,
+            write_stdout_event(
+                level="WARNING",
+                event_name="worker.order_intent.submission_failed",
+                message="Order intent submission failed",
+                reason_code=exc.reason_code,
+                error_code=exc.error_code,
+                symbol=intent.instrument_id,
             )
             return OrderIntentResult(
                 ok=False,
@@ -85,9 +74,12 @@ class SubmitOrderIntent:
                 reason_code=exc.reason_code,
             )
         except Exception:
-            _LOG.exception(
-                "order_intent_submission_internal_error",
-                extra=log_ctx,
+            write_stdout_event(
+                level="ERROR",
+                event_name="worker.order_intent.submission_failed",
+                message="Order intent submission internal error",
+                reason_code=ORDER_INTENT_SUBMISSION_INTERNAL_ERROR,
+                symbol=intent.instrument_id,
             )
             return OrderIntentResult(
                 ok=False,

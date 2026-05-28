@@ -13,7 +13,9 @@ from runtime.domain.worker_identity import WorkerIdentity
 from runtime.infrastructure.clock.clock import SimulatedClock
 from runtime.infrastructure.grpc.risk_order_intent_gateway import RiskOrderIntentGateway
 from runtime.infrastructure.http.srm.manager_gateway import ManagerGateway
-from runtime.infrastructure.strategy_loader.runtime_stub_support import RuntimeOrderIntent
+from runtime.infrastructure.strategy_loader.runtime_stub_support import (
+    RuntimeOrderIntent,
+)
 
 
 def _bt_spec() -> LaunchSpec:
@@ -79,7 +81,9 @@ def _backtest_deps(spec: LaunchSpec, clock: SimulatedClock) -> RuntimeDependenci
     )
 
 
-def test_backtest_submitter_exists_without_risk_gateway_when_callback_provided() -> None:
+def test_backtest_submitter_exists_without_risk_gateway_when_callback_provided() -> (
+    None
+):
     spec = _bt_spec()
     clock = SimulatedClock()
     clock.set_time(datetime(2025, 6, 1, 12, 0, 0, tzinfo=timezone.utc))

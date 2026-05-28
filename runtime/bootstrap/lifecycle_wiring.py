@@ -20,7 +20,9 @@ from runtime.application.strategy_execution.strategy_execution_service import (
     StrategyExecutionService,
 )
 from runtime.application.strategy_execution.strategy_adapter import StrategyAdapter
-from runtime.application.strategy_execution.strategy_error_boundary import StrategyCallResult
+from runtime.application.strategy_execution.strategy_error_boundary import (
+    StrategyCallResult,
+)
 from runtime.application.time_conversion import utc_from_epoch_millis
 from runtime.bootstrap.heartbeat_wiring import ManagerGatewayStatusAdapter
 from runtime.bootstrap.runtime_spec_builder import (

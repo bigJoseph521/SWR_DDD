@@ -8,7 +8,10 @@ from runtime.infrastructure.observability.domain_events import (
     emit_bound_domain_event,
     emit_strategy_worker_domain_event,
 )
-from runtime.infrastructure.observability.logger import RuntimeLogContext, bind_runtime_context
+from runtime.infrastructure.observability.logger import (
+    RuntimeLogContext,
+    bind_runtime_context,
+)
 
 
 class _CaptureHandler(logging.Handler):

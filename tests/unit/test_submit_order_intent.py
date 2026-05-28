@@ -145,9 +145,17 @@ def test_submit_order_intent_maps_timeout_error_to_stable_reason_code() -> None:
 
 
 def test_submit_order_intent_maps_generic_failure_without_raw_exception_text(
-    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import logging
+    emitted: list[dict[str, object]] = []
+
+    def _capture_stdout_event(**kwargs: object) -> None:
+        emitted.append(kwargs)
+
+    monkeypatch.setattr(
+        "runtime.application.order_intents.submit_order_intent.write_stdout_event",
+        _capture_stdout_event,
+    )
 
     class _FailingPort:
         def submit_order_intent(self, intent: StrategyOrderIntent) -> Mapping[str, Any]:
@@ -161,14 +169,13 @@ def test_submit_order_intent_maps_generic_failure_without_raw_exception_text(
         quantity=Decimal("1"),
     )
 
-    with caplog.at_level(logging.ERROR):
-        outcome = use_case.execute(intent)
+    outcome = use_case.execute(intent)
 
     assert outcome.ok is False
     assert outcome.error_code == "order_intent_submission_failed"
     assert outcome.reason_code == ORDER_INTENT_SUBMISSION_INTERNAL_ERROR
     assert "secret internal" not in (outcome.reason_code or "")
-    assert any(
-        "order_intent_submission_internal_error" in record.message
-        for record in caplog.records
-    )
+    assert len(emitted) == 1
+    assert emitted[0]["event_name"] == "worker.order_intent.submission_failed"
+    assert emitted[0]["reason_code"] == ORDER_INTENT_SUBMISSION_INTERNAL_ERROR
+    assert "secret internal" not in str(emitted[0])

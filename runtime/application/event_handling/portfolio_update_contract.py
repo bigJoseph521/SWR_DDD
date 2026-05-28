@@ -28,10 +28,10 @@ def portfolio_update_partition(job_id: str, partition_count: int) -> int:
     return int(crc % partition_count)
 
 
-def portfolio_update_channel_name(
-    channel_prefix: str, *, partition: int
-) -> str:
-    base = str(channel_prefix or DEFAULT_CHANNEL_PREFIX).strip() or DEFAULT_CHANNEL_PREFIX
+def portfolio_update_channel_name(channel_prefix: str, *, partition: int) -> str:
+    base = (
+        str(channel_prefix or DEFAULT_CHANNEL_PREFIX).strip() or DEFAULT_CHANNEL_PREFIX
+    )
     return f"{base.rstrip(':')}:{int(partition)}"
 
 
@@ -87,9 +87,7 @@ def parse_portfolio_update_message(
 
     job_id_raw = payload.get("job_id")
     if not isinstance(job_id_raw, str) or not job_id_raw.strip():
-        return PortfolioUpdateParseResult(
-            event=None, reject_reason="job_id_required"
-        )
+        return PortfolioUpdateParseResult(event=None, reject_reason="job_id_required")
     job_id = job_id_raw.strip()
     if job_id != expected:
         return PortfolioUpdateParseResult(event=None, reject_reason=None)
@@ -102,9 +100,7 @@ def parse_portfolio_update_message(
 
     balance = payload.get("balance")
     if not isinstance(balance, Mapping):
-        return PortfolioUpdateParseResult(
-            event=None, reject_reason="balance_required"
-        )
+        return PortfolioUpdateParseResult(event=None, reject_reason="balance_required")
 
     cash = parse_decimal_balance_value(
         balance.get("cash_balance"), field_name="cash_balance"

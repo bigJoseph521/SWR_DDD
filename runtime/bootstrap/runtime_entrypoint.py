@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import json
-import os
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
@@ -28,10 +26,7 @@ from runtime.domain.errors import RuntimeWorkerReasonCode, WorkerErrorCode
 from runtime.domain.enums import WorkerMode
 from runtime.domain.launch_field_errors import derive_field_buckets_from_field_errors
 from runtime.infrastructure.config.settings import load_settings
-from runtime.infrastructure.grpc.control_plane_envelope_log import (
-    BANNER_WR_TO_RM,
-    write_control_plane_envelope,
-)
+from runtime.infrastructure.observability.stdout_event import write_stdout_event
 from runtime.infrastructure.http.srm.manager_client import build_manager_client
 from runtime.infrastructure.strategy_loader.strategy_bundle_loader import (
     default_bundle_setting_path,
@@ -82,8 +77,8 @@ def emit_validation_failure_to_manager(
         field_errors = dict(exc.field_errors)
     else:
         field_errors = {"payload": str(exc)}
-    missed_fields, invalid_fields, empty_fields = derive_field_buckets_from_field_errors(
-        field_errors
+    missed_fields, invalid_fields, empty_fields = (
+        derive_field_buckets_from_field_errors(field_errors)
     )
 
     envelope = {
@@ -117,28 +112,22 @@ def emit_validation_failure_to_manager(
         },
     }
     id_ = identity
-    la = int(id_.get("launch_attempt") or 0)
-    if la < 1:
-        la = 1
-    write_control_plane_envelope(
-        banner=BANNER_WR_TO_RM,
-        message={
-            "event_id": str(envelope.get("event_id") or ""),
-            "event_name": str(envelope.get("event_name") or "runtime.launch_failed"),
-            "event_version": int(envelope.get("event_version") or 1),
-            "producer": str(envelope.get("producer") or "strategy-worker-runtime"),
-            "occurred_at": occurred_at.astimezone(timezone.utc)
-            .isoformat()
-            .replace("+00:00", "Z"),
-            "correlation_id": str(envelope.get("correlation_id") or ""),
-            "tenant_id": str(id_.get("tenant_id") or ""),
-            "account_id": str(id_.get("account_id") or ""),
-            "runtime_id": str(id_.get("runtime_id") or ""),
-            "worker_identity": str(id_.get("worker_identity") or ""),
-            "launch_attempt": la,
-            "strategy_version_id": str(id_.get("strategy_version_id") or ""),
-            "payload": dict(envelope["payload"]),
-        },
+    payload = envelope["payload"]
+    details = payload.get("details")
+    field_errors: dict[str, object] | None = None
+    if isinstance(details, Mapping):
+        raw_fe = details.get("field_errors")
+        if isinstance(raw_fe, Mapping):
+            field_errors = dict(raw_fe)
+    write_stdout_event(
+        level="ERROR",
+        event_name="worker.bootstrap.failed",
+        message="Launch metadata validation failed",
+        runtime_id=str(id_.get("runtime_id") or "") or None,
+        reason_code=str(payload.get("reason_code") or "")
+        or RuntimeWorkerReasonCode.BOOTSTRAP_METADATA_INCONSISTENT.value,
+        error_code=str(payload.get("error_code") or "") or None,
+        field_errors=field_errors,
     )
     try:
         emitter(envelope)
@@ -148,14 +137,21 @@ def emit_validation_failure_to_manager(
 
 def _print_startup_validation_error(exc: Exception) -> None:
     if isinstance(exc, LaunchSpecValidationError):
-        message = {
-            "error": "LAUNCH_SPEC_INVALID",
-            "reason": exc.reason,
-            "field_errors": dict(exc.field_errors),
-        }
-        print(json.dumps(message, separators=(",", ":"), ensure_ascii=True), flush=True)
+        write_stdout_event(
+            level="ERROR",
+            event_name="worker.launch_spec.invalid",
+            message="Launch spec validation failed",
+            reason=exc.reason,
+            reason_code="LAUNCH_SPEC_INVALID",
+            field_errors=dict(exc.field_errors),
+        )
         return
-    print(f"startup_validation_failed: {exc}", flush=True)
+    write_stdout_event(
+        level="ERROR",
+        event_name="worker.startup.validation_failed",
+        message=str(exc),
+        reason_code="STARTUP_VALIDATION_FAILED",
+    )
 
 
 def run_runtime_from_cli() -> None:
@@ -200,22 +196,28 @@ def run_runtime_from_cli() -> None:
 
     outbound_clients = build_runtime_outbound_clients(settings)
     if settings.launch_spec.mode is WorkerMode.BACKTEST:
-        print(
-            "order intent egress: BACKTEST stdout JSONL (ORDER_INTENT messages)",
-            flush=True,
+        write_stdout_event(
+            level="INFO",
+            event_name="worker.order_intent.egress",
+            message="Order intents egress via BACKTEST stdout JSONL",
+            transport="stdio_jsonl",
         )
     elif outbound_clients.risk_order_intent_client is not None:
-        print(
-            "order intent egress: Risk Service gRPC (risk_worker.proto) "
-            f"{settings.risk_grpc_target!r} "
-            f"(timeout={settings.risk_grpc_timeout_seconds}s)",
-            flush=True,
+        write_stdout_event(
+            level="WARNING",
+            event_name="worker.order_intent.egress",
+            message="Order intents egress via Risk Service gRPC",
+            transport="grpc",
+            proto="risk_worker.proto",
+            target=settings.risk_grpc_target,
+            timeout_seconds=settings.risk_grpc_timeout_seconds,
         )
     else:
-        print(
-            "order intent egress: SWR_RISK_GRPC_TARGET is not set; "
-            "SDK order intents will be unavailable until it is configured.",
-            flush=True,
+        write_stdout_event(
+            level="WARNING",
+            event_name="worker.order_intent.egress",
+            message="SWR_RISK_GRPC_TARGET is not set; SDK order intents unavailable",
+            reason_code="RISK_GRPC_NOT_CONFIGURED",
         )
     container = build_runtime_container(
         settings,
@@ -228,11 +230,7 @@ def run_runtime_from_cli() -> None:
         lifecycle=lifecycle,
         worker_app=worker_app,
     )
-    if install_sigterm_handler(shutdown_coordinator):
-        print(
-            f"kubernetes SIGTERM handler installed (pid={os.getpid()})",
-            flush=True,
-        )
+    install_sigterm_handler(shutdown_coordinator)
 
     def _on_http_stop_requested(reason: str) -> dict[str, object]:
         return shutdown_coordinator.request_http_stop(reason)
@@ -245,11 +243,6 @@ def run_runtime_from_cli() -> None:
             on_stop_requested=_on_http_stop_requested,
         )
         stop_http_server.start()
-        print(
-            f"worker control HTTP POST /internal/v1/stop on {stop_http_server.listen_address} "
-            f"(pid={os.getpid()})",
-            flush=True,
-        )
 
     try:
         container.worker_app.run()

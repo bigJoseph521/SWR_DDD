@@ -10,15 +10,15 @@ from runtime.domain.errors import (
 from runtime.domain.events.dedupe import DedupeDecision, LifecycleSignalDedupe
 from runtime.domain.events.event_envelope import LifecycleEventEnvelope
 from runtime.domain.events.event_factory import LifecycleEventFactory
+from runtime.domain.launch_field_errors import (
+    derive_field_buckets_from_field_errors as _derive_field_buckets_from_field_errors,
+)
 from runtime.domain.policies.mode_policy import (
     Capability,
     ModePolicy,
     require_capability,
 )
-from runtime.infrastructure.grpc.control_plane_envelope_log import (
-    BANNER_WR_TO_RM_HTTP,
-    write_control_plane_envelope,
-)
+from runtime.infrastructure.observability.stdout_event import write_stdout_event
 
 _GLOBAL_LIFECYCLE_DEDUPE = LifecycleSignalDedupe()
 
@@ -39,9 +39,6 @@ _WIRE_PAYLOAD_EXCLUDE: frozenset[str] = frozenset(
 
 def _wire_payload_only(payload: Mapping[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in payload.items() if k not in _WIRE_PAYLOAD_EXCLUDE}
-
-
-from runtime.domain.launch_field_errors import derive_field_buckets_from_field_errors as _derive_field_buckets_from_field_errors
 
 
 class ManagerGateway:
@@ -337,41 +334,84 @@ class ManagerGateway:
         if not callable(emitter):
             raise TypeError("Manager client must expose emit_signal(payload).")
         result = emitter(wire_envelope)
-        self._print_runtime_manager_message(
-            signal_type=signal_type, identity=identity, envelope=wire_envelope
+        self._log_manager_signal_stdout(
+            signal_type=signal_type,
+            identity=identity,
+            payload=wire_envelope.get("payload"),
+            result=result,
         )
         return result
 
-    def _print_runtime_manager_message(
+    def _log_manager_signal_stdout(
         self,
         *,
         signal_type: str,
         identity: Mapping[str, Any],
-        envelope: Mapping[str, Any],
+        payload: object,
+        result: Mapping[str, Any] | dict[str, Any],
     ) -> None:
         if signal_type == "heartbeat" and not self._heartbeat_log_enabled:
             return
-        payload = envelope.get("payload")
-        # Event envelope (top-level): identity + envelope metadata; domain-only fields stay in payload.
-        payload_dict = dict(payload) if isinstance(payload, Mapping) else {}
-        message: dict[str, Any] = {
-            "event_id": envelope.get("event_id"),
-            "event_name": envelope.get("event_name"),
-            "event_version": envelope.get("event_version"),
-            "producer": envelope.get("producer"),
-            "occurred_at": envelope.get("occurred_at"),
-            "correlation_id": envelope.get("correlation_id"),
-            "tenant_id": identity.get("tenant_id"),
-            "account_id": identity.get("account_id"),
-            "runtime_id": identity.get("runtime_id"),
-            "worker_identity": identity.get("worker_identity"),
-            "launch_attempt": identity.get("launch_attempt"),
-            "strategy_version_id": identity.get("strategy_version_id"),
-            "payload": payload_dict,
-        }
 
-        banner = BANNER_WR_TO_RM_HTTP
-        write_control_plane_envelope(banner=banner, message=message)
+        payload_map = dict(payload) if isinstance(payload, Mapping) else {}
+        runtime_id = str(identity.get("runtime_id") or "")
+        accepted = result.get("accepted")
+
+        if signal_type == "bootstrap_succeeded":
+            write_stdout_event(
+                level="INFO",
+                event_name="worker.bootstrap.succeeded",
+                message="Bootstrap succeeded",
+                runtime_id=runtime_id or None,
+                accepted=accepted,
+            )
+            return
+
+        if signal_type == "bootstrap_failed":
+            write_stdout_event(
+                level="ERROR",
+                event_name="worker.bootstrap.failed",
+                message="Bootstrap failed",
+                runtime_id=runtime_id or None,
+                reason_code=payload_map.get("reason_code"),
+                error_code=payload_map.get("error_code"),
+                accepted=accepted,
+            )
+            return
+
+        if signal_type == "unhealthy":
+            write_stdout_event(
+                level="WARNING",
+                event_name="worker.lifecycle.unhealthy",
+                message="Worker reported unhealthy",
+                runtime_id=runtime_id or None,
+                reason_code=payload_map.get("reason_code"),
+                error_code=payload_map.get("error_code"),
+                accepted=accepted,
+            )
+            return
+
+        if signal_type in ("terminated", "controlled_stop"):
+            write_stdout_event(
+                level="INFO",
+                event_name=f"worker.lifecycle.{signal_type}",
+                message=f"Worker lifecycle signal: {signal_type}",
+                runtime_id=runtime_id or None,
+                reason_code=payload_map.get("reason_code"),
+                local_state=payload_map.get("local_state"),
+                accepted=accepted,
+            )
+            return
+
+        if signal_type == "heartbeat" and self._heartbeat_log_enabled:
+            write_stdout_event(
+                level="DEBUG",
+                event_name="worker.srm.status_report",
+                message="Periodic SRM status report",
+                runtime_id=runtime_id or None,
+                local_state=payload_map.get("local_state"),
+                accepted=accepted,
+            )
 
     def _validate_required_fields(
         self,

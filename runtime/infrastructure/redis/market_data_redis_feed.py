@@ -493,15 +493,8 @@ def _emit_stream_log(
     message: str,
     **fields: Any,
 ) -> None:
-    if log is not None:
-        log(level=level, event_name=event_name, message=message, fields=fields)
-        return
-    line = json.dumps(
-        {"event_name": event_name, "message": message, **fields},
-        default=str,
-        sort_keys=True,
-    )
-    print(line, flush=True)
+    del log, level, event_name, message, fields
+    return
 
 
 def _ensure_consumer_groups(
@@ -568,12 +561,14 @@ def _log_partition_stream_event(
     tick: dict[str, Any] | None,
     parse_reason: str | None = None,
 ) -> None:
-    """Log every stream field on the subscribed partition (strategy symbol match or not)."""
+    """Log stream fields for the strategy target symbol only (when configured)."""
     if not _partition_stream_stdout_enabled():
         return
     sym = str(field_sym).strip().upper()
     traded = (strategy_symbol or "").strip().upper()
     matches = bool(traded) and sym == traded
+    if traded and not matches:
+        return
     line: dict[str, Any] = {
         "event": "partition_stream_entry",
         "redis_stream": stream_name,

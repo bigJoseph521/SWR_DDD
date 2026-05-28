@@ -1,15 +1,9 @@
 from __future__ import annotations
 
-import json
 import os
 import threading
 import uuid
-from typing import Any, Mapping
 
-from runtime.application.event_handling.portfolio_update_contract import (
-    portfolio_update_channel_name,
-    portfolio_update_partition,
-)
 from runtime.application.ports.worker_domain_events import StrategyWorkerDomainEvent
 from runtime.domain.enums import WorkerMode
 
@@ -52,12 +46,6 @@ def live_market_data_partition_scope(
         )
         return None
     part = market_data_partition(sym, partition_count)
-    print(
-        "[market-data-redis] "
-        f"XREAD BLOCK 0 on partition {part} for strategy symbol {sym!r} "
-        f"(partition_count={partition_count})",
-        flush=True,
-    )
     return sym, part, {sym}
 
 
@@ -103,9 +91,7 @@ def maybe_start_market_data_feed(svc: object) -> None:
             **redis_stream_key_prefixes_snapshot(md_keys),
         },
     )
-    stream_bases = resolve_stream_names(
-        feeds, bar_timeframe=bar_tf, redis_keys=md_keys
-    )
+    stream_bases = resolve_stream_names(feeds, bar_timeframe=bar_tf, redis_keys=md_keys)
     svc._market_data_stream_log(
         level="INFO",
         event_name="market_data_stream.step_resolve_stream_bases",
@@ -151,9 +137,7 @@ def maybe_start_market_data_feed(svc: object) -> None:
     use_cg = bool(getattr(wrs, "market_data_redis_use_consumer_group", False))
     cgp = (
         str(
-            getattr(
-                wrs, "market_data_consumer_group_prefix", "strategy-worker-runtime"
-            )
+            getattr(wrs, "market_data_consumer_group_prefix", "strategy-worker-runtime")
             or "strategy-worker-runtime"
         ).strip()
         or "strategy-worker-runtime"
@@ -172,9 +156,7 @@ def maybe_start_market_data_feed(svc: object) -> None:
     cmd_preview = market_data_read_command_fields(
         use_consumer_group=use_cg,
         stream_names=list(stream_names),
-        stream_start_id=str(
-            getattr(wrs, "market_data_stream_start_id", "$") or "$"
-        ),
+        stream_start_id=str(getattr(wrs, "market_data_stream_start_id", "$") or "$"),
         block_ms=int(getattr(wrs, "market_data_xread_block_ms", 0)),
         count=int(getattr(wrs, "market_data_xread_count", 100)),
         consumer_group_name=cg_preview if use_cg else "",
@@ -285,9 +267,7 @@ def live_market_data_redis_worker(svc: object) -> None:
     feeds = tuple(getattr(wrs, "market_data_feeds", ()) or ("bars",))
     bar_tf = (getattr(wrs, "replay_bar_timeframe", None) or "1m").strip() or "1m"
     md_keys = market_data_redis_keys_from_settings(wrs)
-    stream_bases = resolve_stream_names(
-        feeds, bar_timeframe=bar_tf, redis_keys=md_keys
-    )
+    stream_bases = resolve_stream_names(feeds, bar_timeframe=bar_tf, redis_keys=md_keys)
     if not stream_bases:
         return
     pc_raw = getattr(wrs, "market_data_realtime_partition_count", 128)
@@ -309,9 +289,7 @@ def live_market_data_redis_worker(svc: object) -> None:
     use_cg = bool(getattr(wrs, "market_data_redis_use_consumer_group", False))
     cgp = (
         str(
-            getattr(
-                wrs, "market_data_consumer_group_prefix", "strategy-worker-runtime"
-            )
+            getattr(wrs, "market_data_consumer_group_prefix", "strategy-worker-runtime")
             or "strategy-worker-runtime"
         ).strip()
         or "strategy-worker-runtime"
@@ -370,9 +348,7 @@ def live_market_data_redis_worker(svc: object) -> None:
     run_market_data_redis_loop(
         redis_url=url,
         stream_names=stream_names,
-        stream_start_id=str(
-            getattr(wrs, "market_data_stream_start_id", "$") or "$"
-        ),
+        stream_start_id=str(getattr(wrs, "market_data_stream_start_id", "$") or "$"),
         block_ms=int(getattr(wrs, "market_data_xread_block_ms", 0)),
         count=int(getattr(wrs, "market_data_xread_count", 100)),
         strategy_symbol=strategy_symbol,
@@ -418,28 +394,7 @@ def maybe_start_portfolio_update_feed(svc: object) -> None:
             flush=True,
         )
         return
-    pc_raw = getattr(wrs, "market_data_realtime_partition_count", 128)
-    try:
-        partition_count = int(pc_raw)
-    except (TypeError, ValueError):
-        partition_count = 128
-    from runtime.application.event_handling.portfolio_update_contract import (
-        portfolio_update_channel_name,
-        portfolio_update_partition,
-    )
 
-    partition = portfolio_update_partition(job_id, partition_count)
-    prefix = str(
-        getattr(wrs, "portfolio_update_channel_prefix", "portfolio:update")
-        or "portfolio:update"
-    ).strip()
-    channel = portfolio_update_channel_name(prefix, partition=partition)
-    print(
-        "[portfolio-update-redis] "
-        f"SUBSCRIBE {channel!r} for job_id={job_id!r} "
-        f"(partition={partition}, partition_count={partition_count})",
-        flush=True,
-    )
     svc._portfolio_update_feed_started = True
     svc._portfolio_update_feed_stop.clear()
     thread = threading.Thread(
@@ -503,4 +458,3 @@ def portfolio_update_redis_worker(svc: object) -> None:
         ),
     )
     adapter.run_pubsub_loop(should_stop=svc._portfolio_update_feed_stop)
-

@@ -20,6 +20,7 @@ from runtime.domain.events.event_envelope import LifecycleEventEnvelope
 from runtime.infrastructure.persistence import schema
 from runtime.infrastructure.persistence.db import begin_connection, create_engine
 from runtime.infrastructure.persistence.migrations import apply_migrations
+from runtime.infrastructure.observability.stdout_event import write_stdout_event
 from runtime.infrastructure.persistence.repositories import (
     HeartbeatObservationRecord,
     OrderIntentJournalRecord,
@@ -74,6 +75,46 @@ def _canonical_order_intent_journal_payload(d: dict[str, Any]) -> dict[str, Any]
     if legacy and not str(out.get("idempotency_key") or "").strip():
         out["idempotency_key"] = str(legacy).strip()
     return out
+
+
+def _emit_order_intent_journal_stdout(
+    *,
+    source: str,
+    symbol: str | None,
+    payload: Mapping[str, Any] | None,
+    result: Mapping[str, Any],
+) -> None:
+    result_dict = dict(result)
+    payload_dict = dict(payload) if payload is not None else {}
+    accepted = result_dict.get("accepted")
+    reason_code = str(result_dict.get("reason_code") or "").strip() or None
+    error_code = str(result_dict.get("error_code") or "").strip() or None
+    side = payload_dict.get("side")
+    order_type = payload_dict.get("order_type")
+    instrument = (
+        symbol
+        or str(payload_dict.get("symbol") or "").strip()
+        or str(payload_dict.get("instrument_id") or "").strip()
+        or None
+    )
+    if accepted is True:
+        level = "INFO"
+        message = "Order intent accepted"
+    else:
+        level = "WARNING"
+        message = "Order intent submission failed"
+    write_stdout_event(
+        level=level,
+        event_name="worker.order_intent.journal",
+        message=message,
+        source=source,
+        symbol=instrument,
+        side=side,
+        order_type=order_type,
+        accepted=accepted,
+        reason_code=reason_code,
+        error_code=error_code,
+    )
 
 
 def _json_safe(value: Any) -> Any:
@@ -614,7 +655,12 @@ class RuntimeJournalSink:
                 wire = json.dumps(line, separators=(",", ":"), ensure_ascii=True)
                 with self._txt_path.open("a", encoding="utf-8") as fh:
                     fh.write(wire + "\n")
-                print(f"[order_intent_journal] {wire}", flush=True)
+                _emit_order_intent_journal_stdout(
+                    source=source,
+                    symbol=sym_col,
+                    payload=payload_safe if isinstance(payload_safe, dict) else None,
+                    result=result_safe if isinstance(result_safe, dict) else {},
+                )
 
             self._with_sqlite_lock_retry(_write)
 

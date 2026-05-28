@@ -83,9 +83,7 @@ class RedisPortfolioUpdateAdapter:
 
     def handle_parsed_message(self, payload: Mapping[str, Any]) -> None:
         """Validate, filter by job_id, and emit normalized event (no strategy hooks)."""
-        result = parse_portfolio_update_message(
-            payload, expected_job_id=self._job_id
-        )
+        result = parse_portfolio_update_message(payload, expected_job_id=self._job_id)
         if result.event is not None:
             self._on_event(result.event)
             return
@@ -167,9 +165,7 @@ class RedisPortfolioUpdateAdapter:
                             ),
                         },
                     )
-                    if should_stop.wait(
-                        _reconnect_backoff_seconds(reconnect_attempt)
-                    ):
+                    if should_stop.wait(_reconnect_backoff_seconds(reconnect_attempt)):
                         break
                     reconnect_attempt += 1
                     if pubsub is not None:

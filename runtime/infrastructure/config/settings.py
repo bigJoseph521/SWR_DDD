@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import os
 import socket
 from dataclasses import dataclass
@@ -9,7 +8,6 @@ from typing import Any, Mapping
 
 from runtime.domain.launch_spec import LaunchSpec, LaunchSpecValidationError
 from runtime.infrastructure.strategy_loader.strategy_bundle_loader import (
-    _scalar,
     default_bundle_setting_path,
     extract_runtime_tuning,
     raw_dict_to_launch_payload,
@@ -205,8 +203,8 @@ def _settings_from_prepared(
     spec_source_label: str | None = None,
 ) -> Settings:
     try:
-        payload, work_root_str, digest_json, computed_digest = raw_dict_to_launch_payload(
-            data, base_dir=base_dir
+        payload, work_root_str, digest_json, computed_digest = (
+            raw_dict_to_launch_payload(data, base_dir=base_dir)
         )
     except ValueError as exc:
         message = str(exc)
@@ -235,53 +233,30 @@ def _settings_from_prepared(
             f"{payload.get('strategy_version_id', '')}:"
             f"{la_int}"
         )
-        cfg = {
-            "account_id": str(payload.get("account_id") or ""),
-            "event_name": "worker_configuration_validated",
-            "launch_attempt": la_int,
-            "level": "INFO",
-            "local_phase": "INITIALIZING",
-            "mode": str(payload.get("mode") or ""),
-            "runtime_id": str(payload.get("runtime_id") or ""),
-            "strategy_version_id": str(payload.get("strategy_version_id") or ""),
-            "tenant_id": str(payload.get("tenant_id") or ""),
-            "worker_identity": worker_identity,
-        }
-        print("Launching strategy_worker_runtime from strategy bundle...")
-        print(f"Launch spec source: {spec_source_label or bundle_path}")
+        from runtime.infrastructure.observability.stdout_event import write_stdout_event
+
         if digest_json.strip() and computed_digest and digest_json != computed_digest:
-            print(
-                "Warning: Provided artifact_digest does not match local computed digest. "
-                "Continuing launch; runtime validation is authoritative.",
-                flush=True,
+            write_stdout_event(
+                level="WARNING",
+                event_name="worker.artifact.digest_mismatch",
+                message=(
+                    "Provided artifact_digest does not match local computed digest; "
+                    "continuing launch"
+                ),
+                reason_code="ARTIFACT_DIGEST_MISMATCH",
+                provided_digest=digest_json,
+                computed_digest=computed_digest,
             )
-            print(
-                f"Warning: provided={digest_json} computed={computed_digest}",
-                flush=True,
-            )
-        print("Launch metadata loaded.")
-        print(f"Using artifact uri: {payload.get('artifact_uri', '')}")
-        print(f"Using artifact digest: {payload.get('artifact_digest', '')}")
-        srm_http = str(tuning.get("strategy_runtime_manager_base_url", "")).strip()
-        if srm_http:
-            print(f"strategy-runtime-manager HTTP base URL: {srm_http}")
-        srm_http_only = str(tuning.get("strategy_runtime_manager_base_url", "")).strip()
-        if srm_http_only:
-            print(
-                f"strategy-runtime-manager signals: HTTP only ({srm_http_only})",
-            )
-        risk_t = str(tuning.get("risk_grpc_target", "")).strip()
-        if risk_t:
-            print(f"Risk Service order-intent gRPC target: {risk_t}")
-            print(f"Risk Service gRPC TCP status: {_grpc_target_status(risk_t)}")
-        else:
-            print(
-                "Risk Service order-intent gRPC: SWR_RISK_GRPC_TARGET not configured.",
-                flush=True,
-            )
-        print("----------------------------Internal Message-------------")
-        print(json.dumps(cfg, separators=(",", ":"), ensure_ascii=True))
-        print("worker runtime status: STARTING", flush=True)
+        write_stdout_event(
+            level="INFO",
+            event_name="worker.configuration.validated",
+            message="Worker configuration validated",
+            runtime_id=str(payload.get("runtime_id") or "") or None,
+            mode=str(payload.get("mode") or "") or None,
+            local_phase="INITIALIZING",
+            launch_attempt=la_int,
+            worker_identity=worker_identity or None,
+        )
 
     launch_spec = LaunchSpec.from_payload(payload)
     work_root = Path(work_root_str).resolve()

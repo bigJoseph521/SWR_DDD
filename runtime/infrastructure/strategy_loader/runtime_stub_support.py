@@ -97,6 +97,10 @@ class SnapshotPortfolioService:
                 equity=equity,
             )
 
+    def replace_snapshot(self, snapshot: PortfolioSnapshot) -> None:
+        with self._lock:
+            self._snapshot = snapshot
+
 
 @dataclass
 class RuntimeOrderIntent:
@@ -201,6 +205,7 @@ class DefaultOrderService:
 
     def _deliver_runtime_intent(self, intent: RuntimeOrderIntent) -> None:
         _ = intent
+
 
 class IndicatorService:
     """

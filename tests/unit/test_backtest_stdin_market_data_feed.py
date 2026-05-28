@@ -24,9 +24,7 @@ def test_backtest_stdin_feed_skeleton_exists() -> None:
 
 def test_backtest_stdin_feed_does_not_support_open_orders_snapshot() -> None:
     assert "OPEN_ORDERS_SNAPSHOT" not in ALLOWED_STDIN_MESSAGE_TYPES
-    assert not any(
-        "OPEN_ORDERS" in member.value for member in StdinMessageType
-    )
+    assert not any("OPEN_ORDERS" in member.value for member in StdinMessageType)
 
 
 def test_backtest_stdin_feed_parses_minimal_market_data_line() -> None:
@@ -57,7 +55,6 @@ def test_backtest_stdin_feed_end_of_stream_invokes_callback() -> None:
 
 
 def test_runtime_has_no_replay_ingress_grpc_wiring() -> None:
-    from pathlib import Path
 
     repo_root = Path(__file__).resolve().parents[2]
     assert not (repo_root / "runtime/bootstrap/replay_ingress_wiring.py").exists()
@@ -69,7 +66,6 @@ def test_runtime_has_no_replay_ingress_grpc_wiring() -> None:
 
 
 def test_strategy_worker_runtime_has_no_backtest_service_dependency() -> None:
-    from pathlib import Path
 
     repo_root = Path(__file__).resolve().parents[2]
     runtime_root = repo_root / "runtime"

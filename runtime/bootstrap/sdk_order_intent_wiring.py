@@ -51,7 +51,7 @@ def _intent_created_at_sim(sdk_intent: Any, clock: Any) -> datetime:
         except Exception:
             _LOG.debug(
                 "intent_created_at_clock_unavailable_using_wall_time",
-                exc_info=True,
+                exc_info=False,
             )
     return datetime.now(timezone.utc)
 
@@ -66,7 +66,7 @@ def _resolve_created_at_for_sdk_intent(
         try:
             snap = latest_market_event_at()
         except Exception:
-            _LOG.debug("intent_created_at_market_snapshot_failed", exc_info=True)
+            _LOG.debug("intent_created_at_market_snapshot_failed", exc_info=False)
         else:
             if isinstance(snap, datetime):
                 return _normalize_utc_dt(snap)
@@ -96,7 +96,9 @@ def build_sdk_order_intent_submitter(
     _ = worker_identity
     env_corr = order_intent_correlation_id
     if platform_trace is not None:
-        corr_fallback = platform_trace.effective_correlation_id(env_fallback=env_corr) or ""
+        corr_fallback = (
+            platform_trace.effective_correlation_id(env_fallback=env_corr) or ""
+        )
     else:
         corr_fallback = env_corr
 
@@ -158,9 +160,9 @@ def build_sdk_order_intent_submitter(
                 dependencies.clock,
                 latest_market_event_at=latest_market_event_at,
             )
-            strategy_intent = strategy_order_intent_from_sdk(sdk_intent).with_created_at(
-                created_at
-            )
+            strategy_intent = strategy_order_intent_from_sdk(
+                sdk_intent
+            ).with_created_at(created_at)
             if is_backtest:
                 outcome = submit_use_case.execute(strategy_intent)
                 wire_payload = dict(submission_port.last_wire_payload or {})
@@ -212,7 +214,7 @@ def build_sdk_order_intent_submitter(
                 "reason_code": exc.reason_code,
             }
         except Exception:
-            _LOG.exception("order_intent_submit_prepare_failed")
+            _LOG.error("order_intent_submit_prepare_failed", exc_info=False)
             wire_payload = {
                 "_prepare_failed": True,
                 "runtime_id": launch_spec.runtime_id,
@@ -224,11 +226,13 @@ def build_sdk_order_intent_submitter(
             try:
                 on_order_intent_result(egress_source, wire_payload, result)
             except Exception:
-                _LOG.exception("on_order_intent_result_callback_failed")
+                _LOG.error("on_order_intent_result_callback_failed", exc_info=False)
         return result
 
     if is_backtest:
         return _submit
-    if (not disable_order_intent_grpc and can_submit_risk) or on_order_intent_result is not None:
+    if (
+        not disable_order_intent_grpc and can_submit_risk
+    ) or on_order_intent_result is not None:
         return _submit
     return None

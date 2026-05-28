@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from runtime.application.ports.manager_status_port import ManagerStatusPort
-
 
 class ManagerGatewayStatusAdapter:
     """Adapts manager gateway heartbeat API to :class:`ManagerStatusPort`."""
